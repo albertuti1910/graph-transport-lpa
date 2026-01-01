@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>UrbanPath Demo</title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="layout">
+      <aside id="panel">
+        <h1>UrbanPath</h1>
+        <p class="muted">Click en el mapa para fijar origen y destino.</p>
+
+        <div class="field">
+          <label>Origen (lat, lon)</label>
+          <div class="row">
+            <input id="o-lat" type="number" step="any" placeholder="28.12" />
+            <input id="o-lon" type="number" step="any" placeholder="-15.43" />
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Destino (lat, lon)</label>
+          <div class="row">
+            <input id="d-lat" type="number" step="any" placeholder="28.121" />
+            <input id="d-lon" type="number" step="any" placeholder="-15.431" />
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Salida</label>
+          <input id="depart-at" type="datetime-local" />
+          <p class="muted">Si vacío, usa <code>now</code>.</p>
+        </div>
+
+        <div class="field">
+          <label>Preferencia</label>
+          <select id="preference">
+            <option value="fastest">Más rápida</option>
+            <option value="least_walking">Caminar menos</option>
+          </select>
+        </div>
+
+        <div class="buttons">
+          <button id="btn-sync">Calcular</button>
+          <button id="btn-async">Calcular async</button>
+          <button id="btn-clear" class="btn-secondary">Limpiar</button>
+        </div>
+
+        <div class="field">
+          <label>Request ID (async)</label>
+          <div class="row">
+            <input id="request-id" placeholder="pegalo aquí" />
+            <button id="btn-poll">Consultar</button>
+          </div>
+        </div>
+
+        <div id="status" class="status" aria-live="polite"></div>
+        <pre id="output" class="output"></pre>
+      </aside>
+
+      <main id="map"></main>
+    </div>
+
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
+    <script src="app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+.env/
+
+# Tooling caches
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Coverage / reports
+.coverage
+coverage.xml
+htmlcov/
+
+# OS / editor
+.DS_Store
+.vscode/
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+
+# Local data / caches (keep dirs, ignore contents)
+data/osm_cache/*
+data/osm_prebuilt/*
+
+# Jupyter
+.ipynb_checkpoints/

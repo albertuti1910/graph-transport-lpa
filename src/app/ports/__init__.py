@@ -1,0 +1,1 @@
+"""Ports (hexagonal architecture)."""

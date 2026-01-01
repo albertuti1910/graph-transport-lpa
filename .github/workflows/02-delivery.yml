@@ -1,0 +1,85 @@
+name: 02-delivery
+
+on:
+  push:
+    branches: ["main"]
+
+concurrency:
+  group: delivery-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  delivery:
+    runs-on: ubuntu-latest
+
+    env:
+      USE_LOCALSTACK: "1"
+      ENDPOINT_URL: "http://localhost:4566"
+      LOCALSTACK_ENDPOINT_URL: "http://localhost:4566"
+      AWS_REGION: "eu-west-1"
+      AWS_ACCESS_KEY_ID: "test"
+      AWS_SECRET_ACCESS_KEY: "test"
+      REQUIRE_LOCALSTACK: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: |
+          uv sync --group dev
+
+      - name: Start LocalStack (docker compose)
+        run: |
+          docker compose up -d
+
+          echo "Waiting for LocalStack..."
+          for i in $(seq 1 60); do
+            if curl -fsS --max-time 2 "${ENDPOINT_URL}/_localstack/health" | grep -q '"running"'; then
+              echo "LocalStack is running"
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo "LocalStack did not become healthy in time"
+          docker compose logs --no-color || true
+          exit 1
+
+      - name: Quality gates
+        run: |
+          bash .github/workflows/quality-gates/01-unit-tests.sh
+          bash .github/workflows/quality-gates/02-static-analysis.sh
+          bash .github/workflows/quality-gates/05-integration-tests.sh
+          bash .github/workflows/quality-gates/03-load-tests.sh
+          bash .github/workflows/quality-gates/04-security-scan.sh
+
+      - name: Build Docker image
+        run: |
+          docker build -t urbanpath:ci .
+
+      - name: Export image as artifact
+        run: |
+          mkdir -p dist
+          docker save urbanpath:ci -o dist/urbanpath-ci-image.tar
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: urbanpath-ci-image
+          path: dist/urbanpath-ci-image.tar
+
+      - name: Shutdown services
+        if: always()
+        run: |
+          docker compose down -v
