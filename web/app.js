@@ -17,8 +17,9 @@ let statusStartedAt = null;
 let realtimeViewActive = false;
 let rtRoutesById = new Map(); // route_id -> route meta
 let rtSelectedRouteIds = new Set();
-let rtLineLayers = new Map(); // route_id -> polyline layer
+let rtLineLayers = new Map(); // route_id -> array of polyline layers
 let rtVehicleMarkers = new Map(); // vehicle key -> marker
+let rtStopMarkersByRoute = new Map(); // route_id -> array of markers
 let rtPollTimer = null;
 
 function setStatus(text) {
@@ -166,7 +167,10 @@ function clearRouteLayers() {
 
 function clearRealtimeLayers() {
   for (const layer of rtLineLayers.values()) {
-    try { layer.remove(); } catch (_) {}
+    const layers = Array.isArray(layer) ? layer : [layer];
+    for (const l of layers) {
+      try { l.remove(); } catch (_) {}
+    }
   }
   rtLineLayers = new Map();
 
@@ -174,6 +178,39 @@ function clearRealtimeLayers() {
     try { marker.remove(); } catch (_) {}
   }
   rtVehicleMarkers = new Map();
+
+  for (const markers of rtStopMarkersByRoute.values()) {
+    for (const m of markers) {
+      try { m.remove(); } catch (_) {}
+    }
+  }
+  rtStopMarkersByRoute = new Map();
+}
+
+async function ensureRouteStops(routeId) {
+  if (rtStopMarkersByRoute.has(routeId)) return;
+
+  const route = rtRoutesById.get(routeId);
+  const color = rtRouteColor(route);
+
+  const stops = await getJson(`/api/realtime/routes/${encodeURIComponent(routeId)}/stops`);
+  const markers = [];
+  (Array.isArray(stops) ? stops : []).forEach((s) => {
+    const loc = s?.location;
+    if (!loc || typeof loc.lat !== 'number' || typeof loc.lon !== 'number') return;
+    const label = `${escapeHtml(s.name || '')}<br/><span class="muted">#${escapeHtml(s.stop_id || '')}</span>`;
+    const marker = L.circleMarker([loc.lat, loc.lon], {
+      radius: 4,
+      weight: 1,
+      color: '#111111',
+      fillColor: '#848884',
+      fillOpacity: 0.35,
+    }).addTo(map);
+    marker.bindPopup(label);
+    markers.push(marker);
+  });
+
+  rtStopMarkersByRoute.set(routeId, markers);
 }
 
 function normalizeGtfsColor(raw) {
@@ -601,16 +638,37 @@ async function ensureRouteShape(routeId) {
   const color = rtRouteColor(route);
 
   const data = await getJson(`/api/realtime/routes/${encodeURIComponent(routeId)}/shape`);
-  const pts = Array.isArray(data?.points) ? data.points : [];
-  const latlngs = pts
-    .filter((p) => p && typeof p.lat === 'number' && typeof p.lon === 'number')
-    .map((p) => [p.lat, p.lon]);
 
-  if (latlngs.length < 2) return;
+  // New API: { route_id, shapes: [{shape_id, points:[...]}] }
+  // Backward compatible: { route_id, points:[...] }
+  const shapes = Array.isArray(data?.shapes) ? data.shapes : null;
 
-  const layer = L.polyline(latlngs, { weight: 5, color, opacity: 0.7 }).addTo(map);
-  layer.bindPopup(`Línea ${escapeHtml(routeDisplayName(route) || routeId)}`);
-  rtLineLayers.set(routeId, layer);
+  const layers = [];
+  if (shapes && shapes.length) {
+    for (const sh of shapes) {
+      const pts = Array.isArray(sh?.points) ? sh.points : [];
+      const latlngs = pts
+        .filter((p) => p && typeof p.lat === 'number' && typeof p.lon === 'number')
+        .map((p) => [p.lat, p.lon]);
+      if (latlngs.length < 2) continue;
+      const layer = L.polyline(latlngs, { weight: 5, color, opacity: 0.7 }).addTo(map);
+      layers.push(layer);
+    }
+  } else {
+    const pts = Array.isArray(data?.points) ? data.points : [];
+    const latlngs = pts
+      .filter((p) => p && typeof p.lat === 'number' && typeof p.lon === 'number')
+      .map((p) => [p.lat, p.lon]);
+    if (latlngs.length >= 2) {
+      layers.push(L.polyline(latlngs, { weight: 5, color, opacity: 0.7 }).addTo(map));
+    }
+  }
+
+  if (!layers.length) return;
+  for (const layer of layers) {
+    layer.bindPopup(`Línea ${escapeHtml(routeDisplayName(route) || routeId)}`);
+  }
+  rtLineLayers.set(routeId, layers);
 }
 
 async function syncRealtimeLayers() {
@@ -618,16 +676,38 @@ async function syncRealtimeLayers() {
   for (const rid of rtSelectedRouteIds) {
     try {
       await ensureRouteShape(rid);
+      await ensureRouteStops(rid);
     } catch (_) {
       // ignore per-route errors
     }
   }
 
   // Remove unselected shapes
-  for (const [rid, layer] of rtLineLayers.entries()) {
+  for (const [rid, layers] of rtLineLayers.entries()) {
     if (!rtSelectedRouteIds.has(rid)) {
-      try { layer.remove(); } catch (_) {}
+      const ls = Array.isArray(layers) ? layers : [layers];
+      for (const l of ls) {
+        try { l.remove(); } catch (_) {}
+      }
       rtLineLayers.delete(rid);
+    }
+  }
+
+  for (const [rid, markers] of rtStopMarkersByRoute.entries()) {
+    if (!rtSelectedRouteIds.has(rid)) {
+      for (const m of markers) {
+        try { m.remove(); } catch (_) {}
+      }
+      rtStopMarkersByRoute.delete(rid);
+    }
+  }
+
+  // Remove vehicle markers for deselected routes even if refresh fails.
+  for (const [key, marker] of rtVehicleMarkers.entries()) {
+    const mrid = marker?._rtRouteId;
+    if (mrid && !rtSelectedRouteIds.has(mrid)) {
+      try { marker.remove(); } catch (_) {}
+      rtVehicleMarkers.delete(key);
     }
   }
 }
@@ -653,7 +733,8 @@ async function refreshRealtimeVehicles() {
     const qs = new URLSearchParams();
     for (const rid of rtSelectedRouteIds) qs.append('route_id', rid);
     const data = await getJson(`/api/realtime/vehicles?${qs.toString()}`);
-    const vehicles = Array.isArray(data?.vehicles) ? data.vehicles : [];
+    const rawVehicles = Array.isArray(data?.vehicles) ? data.vehicles : [];
+    const vehicles = rawVehicles.filter((v) => v && v.route_id && rtSelectedRouteIds.has(String(v.route_id)));
 
     const seen = new Set();
     vehicles.forEach((v, idx) => {
@@ -677,6 +758,7 @@ async function refreshRealtimeVehicles() {
           fillColor: color,
           fillOpacity: 1.0,
         }).addTo(map);
+        marker._rtRouteId = String(v.route_id || '');
         marker.bindPopup(label);
         rtVehicleMarkers.set(key, marker);
       }

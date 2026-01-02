@@ -16,8 +16,19 @@ class TransitRouteSchema(BaseModel):
 
 
 class RouteShapeSchema(BaseModel):
-    route_id: str
+    shape_id: str
     points: list[GeoPointSchema]
+
+
+class RouteShapesSchema(BaseModel):
+    route_id: str
+    shapes: list[RouteShapeSchema]
+
+
+class StopSchema(BaseModel):
+    stop_id: str
+    name: str
+    location: GeoPointSchema
 
 
 class VehicleSchema(BaseModel):
