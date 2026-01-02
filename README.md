@@ -1,12 +1,11 @@
 # UrbanPath (graph-transport-lpa)
 
-Proyecto de curso: cálculo de rutas multimodal (caminar + guagua/GTFS) para Las Palmas de Gran Canaria, usando AWS o LocalStack.
+Proyecto de cálculo de rutas multimodal (caminar + guagua/GTFS) para Las Palmas de Gran Canaria, usando AWS o LocalStack.
 
-## Qué pide el profesor y cómo se cubre
+## Requisitos del trabajo y cómo se cubre
 
 - **Uso de nube (AWS o LocalStack):** se usan **S3 + SQS + DynamoDB** (y LocalStack para desarrollo/CI).
-- **Programación y buenas prácticas:** Python 3.12, `uv`, tests, lint/typecheck, arquitectura hexagonal.
-- **Documentación (niveles aplicación y tecnología):** ver [docs/architecture.md](docs/architecture.md).
+- **Documentación de aquitectura empresarial:** ver [docs/architecture.md](docs/architecture.md).
 - **Configuración de recursos cloud:** Terraform en [infra/](infra/), módulos para S3/SQS/DynamoDB.
 
 ## Arquitectura (resumen)
@@ -75,8 +74,6 @@ docker volume rm graph-transport-lpa_osm-prebuilt graph-transport-lpa_osm-cache
 docker compose -f docker-compose.demo.yml up -d --build
 ```
 
-Nota: si tu proyecto de Compose no se llama `graph-transport-lpa`, lista los volúmenes con `docker volume ls | grep osm-prebuilt` y borra el que corresponda.
-
 Para inspeccionar el volumen:
 
 ```bash
@@ -133,12 +130,6 @@ Notas:
 - `docker-compose.demo.yml` levanta el stack completo (LocalStack + API + worker + web).
 - Para más detalle de infra, ver [infra/README.md](infra/README.md).
 
-## Mantenimiento del repo
-
-Checklist de higiene del repo: [docs/repo-hygiene.md](docs/repo-hygiene.md)
-
 ## Sandbox AWS (mínimo viable)
 
 Este repo deja lista la **infra base** (S3/SQS/DynamoDB) vía Terraform. Para desplegar API/worker y la web en AWS hay varias opciones (ECS/EC2).
-
-Si quieres que lo dejemos automatizado (ECS + ALB + S3 estático), dime qué restricción de coste/servicio te pone el profesor y lo implemento.
