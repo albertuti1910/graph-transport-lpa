@@ -1,0 +1,118 @@
+#!/bin/bash
+set -euo pipefail
+
+AWS_REGION="${aws_region}"
+ECR_REGISTRY="${ecr_registry}"
+APP_IMAGE="${app_image}"
+WEB_IMAGE="${web_image}"
+SQS_QUEUE_URL="${sqs_queue_url}"
+DDB_TABLE="${ddb_table}"
+STREET_GRAPH_BUCKET="${street_graph_bucket}"
+OSM_GRAPH_S3_URI="${osm_graph_s3_uri}"
+
+# Packages
+DNF="dnf"
+$DNF -y update
+$DNF -y install docker docker-compose-plugin awscli
+
+systemctl enable --now docker
+
+mkdir -p /opt/urbanpath
+
+cat >/opt/urbanpath/.env <<EOF
+AWS_REGION=${aws_region}
+SQS_QUEUE_URL=${sqs_queue_url}
+DDB_TABLE=${ddb_table}
+STREET_GRAPH_BUCKET=${street_graph_bucket}
+OSM_GRAPH_S3_URI=${osm_graph_s3_uri}
+OSM_GRAPH_AUTO_BUILD=0
+OSM_GRAPH_PATH=/app/osm_prebuilt/lpa_walk.graphml
+# OSM_PLACE is unused when AUTO_BUILD=0 (kept empty intentionally)
+OSM_PLACE=
+WORKER_LOOP=1
+URBANPATH_APP_IMAGE=${app_image}
+URBANPATH_WEB_IMAGE=${web_image}
+EOF
+
+cat >/opt/urbanpath/docker-compose.yml <<'YAML'
+services:
+  api:
+    image: $${URBANPATH_APP_IMAGE}
+    environment:
+      - AWS_REGION=$${AWS_REGION}
+      - SQS_QUEUE_URL=$${SQS_QUEUE_URL}
+      - DDB_TABLE=$${DDB_TABLE}
+      - STREET_GRAPH_BUCKET=$${STREET_GRAPH_BUCKET}
+      - OSMNX_CACHE_FOLDER=/app/osm_cache
+      - OSM_GRAPH_PATH=$${OSM_GRAPH_PATH}
+      - OSM_GRAPH_S3_URI=$${OSM_GRAPH_S3_URI}
+      - OSM_GRAPH_AUTO_BUILD=$${OSM_GRAPH_AUTO_BUILD}
+      - OSM_PLACE=$${OSM_PLACE}
+    volumes:
+      - osm-cache:/app/osm_cache
+      - osm-prebuilt:/app/osm_prebuilt
+
+  worker:
+    image: $${URBANPATH_APP_IMAGE}
+    command: ["python", "-m", "src.worker"]
+    environment:
+      - AWS_REGION=$${AWS_REGION}
+      - SQS_QUEUE_URL=$${SQS_QUEUE_URL}
+      - DDB_TABLE=$${DDB_TABLE}
+      - STREET_GRAPH_BUCKET=$${STREET_GRAPH_BUCKET}
+      - WORKER_LOOP=$${WORKER_LOOP}
+      - OSMNX_CACHE_FOLDER=/app/osm_cache
+      - OSM_GRAPH_PATH=$${OSM_GRAPH_PATH}
+      - OSM_GRAPH_S3_URI=$${OSM_GRAPH_S3_URI}
+      - OSM_GRAPH_AUTO_BUILD=$${OSM_GRAPH_AUTO_BUILD}
+      - OSM_PLACE=$${OSM_PLACE}
+    volumes:
+      - osm-cache:/app/osm_cache
+      - osm-prebuilt:/app/osm_prebuilt
+
+  web:
+    image: $${URBANPATH_WEB_IMAGE}
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+
+volumes:
+  osm-cache:
+  osm-prebuilt:
+YAML
+
+cat >/usr/local/bin/urbanpath-update.sh <<'SH'
+#!/bin/bash
+set -euo pipefail
+
+cd /opt/urbanpath
+
+# Login to ECR (token expires periodically; do it each restart/pull)
+aws ecr get-login-password --region "$${AWS_REGION}" | docker login --username AWS --password-stdin "$${ECR_REGISTRY}"
+
+docker compose pull
+docker compose up -d
+SH
+chmod +x /usr/local/bin/urbanpath-update.sh
+
+cat >/etc/systemd/system/urbanpath.service <<EOF
+[Unit]
+Description=UrbanPath (api+worker+web) via Docker Compose
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+Environment=AWS_REGION=${aws_region}
+Environment=ECR_REGISTRY=${ecr_registry}
+RemainAfterExit=yes
+WorkingDirectory=/opt/urbanpath
+ExecStart=/usr/local/bin/urbanpath-update.sh
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable --now urbanpath.service

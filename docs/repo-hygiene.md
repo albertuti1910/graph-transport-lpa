@@ -21,6 +21,8 @@ Este documento describe cómo está organizado el proyecto **según el código a
 - Demo local (UI + backend + worker + LocalStack): `docker-compose.demo.yml` + `web/`
 - LocalStack “solo infra” (útil para CI/integración): `docker-compose.yml`
 - Infra como código (S3/SQS/DynamoDB): `infra/`
+- Deploy AWS (build/push + restart vía SSM): `scripts/aws_deploy.sh`
+- Compose de referencia para AWS (sin LocalStack): `docker-compose.aws.yml`
 
 ## Chequeos rápidos
 

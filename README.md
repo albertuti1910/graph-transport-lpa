@@ -5,7 +5,7 @@ Proyecto de cálculo de rutas multimodal (caminar + guagua/GTFS) para Las Palmas
 ## Requisitos del trabajo y cómo se cubre
 
 - **Uso de nube (AWS o LocalStack):** se usan **S3 + SQS + DynamoDB** (y LocalStack para desarrollo/CI).
-- **Documentación de aquitectura empresarial:** ver [docs/architecture.md](docs/architecture.md).
+- **Documentación de arquitectura empresarial:** ver [docs/architecture.md](docs/architecture.md).
 - **Configuración de recursos cloud:** Terraform en [infra/](infra/), módulos para S3/SQS/DynamoDB.
 
 ## Arquitectura (resumen)
@@ -93,6 +93,38 @@ Para un sandbox AWS es recomendable guardar el grafo preconstruido como artefact
 
 Con eso, al arrancar el contenedor se descarga el fichero si falta y luego solo se carga.
 
+### AWS: deploy automático (EC2 + ECR + SSM)
+
+Para un despliegue mínimo el repo incluye una opción en la que **todo corre en una sola EC2** (web + api + worker), con imágenes en ECR y gestión por SSM (sin SSH).
+
+Requisito: tener un grafo prebuilt en S3 (no se construye en runtime).
+
+1) Sube el grafo prebuilt a S3 (ejemplo):
+
+```bash
+aws s3 cp ./lpa_walk.graphml s3://<bucket>/<key>
+```
+
+2) Despliega (Terraform + build/push + restart):
+
+```bash
+export AWS_REGION=eu-west-1
+export IMAGE_TAG=latest
+export OSM_GRAPH_S3_URI=s3://<bucket>/<key>
+./scripts/aws_deploy.sh
+```
+
+3) Obtén la IP pública:
+
+```bash
+cd infra
+terraform output -raw compute_public_ip
+```
+
+4) Abre la demo en:
+
+- `http://<ip>/`
+
 ## Desarrollo (sin Docker)
 
 - Instala dependencias:
@@ -132,4 +164,4 @@ Notas:
 
 ## Sandbox AWS (mínimo viable)
 
-Este repo deja lista la **infra base** (S3/SQS/DynamoDB) vía Terraform. Para desplegar API/worker y la web en AWS hay varias opciones (ECS/EC2).
+Este repo deja lista la **infra base** (S3/SQS/DynamoDB) vía Terraform y una opción opcional de runtime en EC2 (ver sección anterior y [infra/README.md](infra/README.md)).

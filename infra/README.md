@@ -19,10 +19,13 @@ Módulos implementados:
 - `infra/modules/storage`
 - `infra/modules/messaging`
 - `infra/modules/database`
+- `infra/modules/compute` (runtime en EC2 + ECR + SSM)
 
 ## Alcance
 
-Esta carpeta cubre **recursos gestionados** (S3/SQS/DynamoDB). El despliegue de cómputo (API/worker) y red (VPC/ALB) no está automatizado aquí.
+Esta carpeta cubre **recursos gestionados** (S3/SQS/DynamoDB) y, de forma opcional, un runtime basado en una única instancia EC2.
+
+No se crea VPC/ALB: se usa la VPC por defecto y se expone HTTP (puerto 80) directamente en la instancia.
 
 ## Relación con la demo
 
@@ -38,3 +41,28 @@ Según el servicio objetivo (ECS/EC2/Kubernetes), normalmente harías:
 - exposición (ALB/API Gateway) y/o hosting estático para `web`
 - IAM roles y policy mínima
 - artifact del grafo OSM prebuilt en S3 + env vars (`OSM_GRAPH_S3_URI`, `OSM_GRAPH_AUTO_BUILD=0`)
+
+## Deploy AWS automático (EC2 + Docker Compose)
+
+Este repo incluye un camino mínimo para desplegar el stack (web + api + worker) en **una sola EC2**:
+
+- ECR para imágenes `urbanpath-app` y `urbanpath-web`
+- EC2 Amazon Linux 2023 con:
+  - Docker + Compose plugin
+  - SSM (sin SSH)
+  - un servicio systemd (`urbanpath.service`) que hace `docker compose pull && up -d`
+
+Variables Terraform:
+
+- `use_localstack=false`
+- `enable_compute=true`
+- `osm_graph_s3_uri=s3://<bucket>/<key>` (recomendado: grafo prebuilt fijo)
+- opcional: `compute_instance_type` (default `t3.micro`)
+
+Script de despliegue (build + push + restart):
+
+```bash
+export AWS_REGION=eu-west-1
+export IMAGE_TAG=latest
+./scripts/aws_deploy.sh
+```

@@ -1,0 +1,45 @@
+services:
+  api:
+    image: ${URBANPATH_APP_IMAGE}
+    environment:
+      - AWS_REGION=${AWS_REGION}
+      - SQS_QUEUE_URL=${SQS_QUEUE_URL}
+      - DDB_TABLE=${DDB_TABLE}
+      - STREET_GRAPH_BUCKET=${STREET_GRAPH_BUCKET}
+      - OSMNX_CACHE_FOLDER=/app/osm_cache
+      - OSM_GRAPH_PATH=/app/osm_prebuilt/lpa_walk.graphml
+      - OSM_GRAPH_S3_URI=${OSM_GRAPH_S3_URI}
+      - OSM_GRAPH_AUTO_BUILD=${OSM_GRAPH_AUTO_BUILD:-0}
+      - OSM_PLACE=${OSM_PLACE:-}
+    volumes:
+      - osm-cache:/app/osm_cache
+      - osm-prebuilt:/app/osm_prebuilt
+
+  worker:
+    image: ${URBANPATH_APP_IMAGE}
+    command: ["python", "-m", "src.worker"]
+    environment:
+      - AWS_REGION=${AWS_REGION}
+      - SQS_QUEUE_URL=${SQS_QUEUE_URL}
+      - DDB_TABLE=${DDB_TABLE}
+      - STREET_GRAPH_BUCKET=${STREET_GRAPH_BUCKET}
+      - WORKER_LOOP=${WORKER_LOOP:-1}
+      - OSMNX_CACHE_FOLDER=/app/osm_cache
+      - OSM_GRAPH_PATH=/app/osm_prebuilt/lpa_walk.graphml
+      - OSM_GRAPH_S3_URI=${OSM_GRAPH_S3_URI}
+      - OSM_GRAPH_AUTO_BUILD=${OSM_GRAPH_AUTO_BUILD:-0}
+      - OSM_PLACE=${OSM_PLACE:-}
+    volumes:
+      - osm-cache:/app/osm_cache
+      - osm-prebuilt:/app/osm_prebuilt
+
+  web:
+    image: ${URBANPATH_WEB_IMAGE}
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+
+volumes:
+  osm-cache:
+  osm-prebuilt:

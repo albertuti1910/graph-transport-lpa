@@ -76,8 +76,18 @@ Calcular rutas multimodales combinando:
 ### Infra como código
 
 - Terraform en [infra/](../infra)
-  - módulos: `storage` (S3), `messaging` (SQS), `database` (DynamoDB)
+  - módulos: `storage` (S3), `messaging` (SQS), `database` (DynamoDB), `compute` (ECR + EC2 + SSM)
   - provider preparado para LocalStack (endpoints por servicio)
+
+### Despliegue AWS
+
+Para un “sandbox” AWS con coste mínimo y poca complejidad, se soporta un despliegue en **una sola instancia EC2**:
+
+- ECR guarda las imágenes (app + web)
+- EC2 arranca con user-data, instala Docker/Compose y levanta el stack
+- SSM permite operar la máquina sin SSH (restart, logs, etc.)
+
+El runtime espera un grafo OSM prebuilt en S3 (se recomienda fijar `OSM_GRAPH_AUTO_BUILD=0` y usar `osm_graph_s3_uri`).
 
 ### Demo web
 

@@ -27,6 +27,36 @@ variable "localstack_endpoint" {
   default     = "http://localhost:4566"
 }
 
+variable "enable_compute" {
+  type        = bool
+  description = "Whether to provision a cheap EC2-based runtime (ECR + EC2 + SSM) for AWS."
+  default     = false
+}
+
+variable "compute_instance_type" {
+  type        = string
+  description = "EC2 instance type for the runtime (cost driver)."
+  default     = "t3.micro"
+}
+
+variable "compute_image_tag" {
+  type        = string
+  description = "Docker image tag to deploy to the instance."
+  default     = "latest"
+}
+
+variable "compute_allow_http_cidr" {
+  type        = string
+  description = "CIDR allowed to access the demo (port 80)."
+  default     = "0.0.0.0/0"
+}
+
+variable "osm_graph_s3_uri" {
+  type        = string
+  description = "s3://bucket/key for the prebuilt OSM graph used in AWS runtime (set OSM_GRAPH_AUTO_BUILD=0)."
+  default     = ""
+}
+
 provider "aws" {
   region = var.aws_region
 

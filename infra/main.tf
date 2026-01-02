@@ -48,6 +48,24 @@ module "database" {
   }
 }
 
+module "compute" {
+  source = "./modules/compute"
+  count  = var.enable_compute && !var.use_localstack ? 1 : 0
+
+  project = local.project
+
+  aws_region          = var.aws_region
+  app_sqs_queue_url   = module.messaging.queue_url
+  app_ddb_table_name  = module.database.table_name
+  street_graph_bucket = module.street_graph_cache.bucket_name
+
+  osm_graph_s3_uri = var.osm_graph_s3_uri
+
+  instance_type    = var.compute_instance_type
+  image_tag        = var.compute_image_tag
+  allow_http_cidr  = var.compute_allow_http_cidr
+}
+
 output "s3_bucket_name" {
   value = module.storage.bucket_name
 }
@@ -62,4 +80,24 @@ output "sqs_queue_url" {
 
 output "dynamodb_table_name" {
   value = module.database.table_name
+}
+
+output "compute_public_ip" {
+  value       = try(module.compute[0].public_ip, null)
+  description = "Public IPv4 of the EC2 instance (if enable_compute=true)."
+}
+
+output "compute_instance_id" {
+  value       = try(module.compute[0].instance_id, null)
+  description = "Instance id (if enable_compute=true)."
+}
+
+output "app_ecr_repository_url" {
+  value       = try(module.compute[0].app_ecr_repository_url, null)
+  description = "ECR repo URL for app image (if enable_compute=true)."
+}
+
+output "web_ecr_repository_url" {
+  value       = try(module.compute[0].web_ecr_repository_url, null)
+  description = "ECR repo URL for web image (if enable_compute=true)."
 }
