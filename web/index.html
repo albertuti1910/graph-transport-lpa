@@ -16,49 +16,71 @@
     <div id="layout">
       <aside id="panel">
         <h1>UrbanPath</h1>
-        <p class="muted">Click en el mapa para fijar origen y destino.</p>
 
-        <div class="field">
-          <label>Origen (lat, lon)</label>
-          <div class="row">
-            <input id="o-lat" type="number" step="any" placeholder="28.12" />
-            <input id="o-lon" type="number" step="any" placeholder="-15.43" />
+        <div class="tabs" role="tablist" aria-label="Vistas">
+          <button id="tab-route" class="tab tab-active" type="button" role="tab" aria-selected="true">Ruta</button>
+          <button id="tab-realtime" class="tab" type="button" role="tab" aria-selected="false">Tiempo real</button>
+        </div>
+
+        <div id="view-route" class="view">
+          <p class="muted">Click en el mapa para fijar origen y destino.</p>
+
+          <div class="field">
+            <label>Origen (lat, lon)</label>
+            <div class="row">
+              <input id="o-lat" type="number" step="any" placeholder="28.12" />
+              <input id="o-lon" type="number" step="any" placeholder="-15.43" />
+            </div>
+          </div>
+
+          <div class="field">
+            <label>Destino (lat, lon)</label>
+            <div class="row">
+              <input id="d-lat" type="number" step="any" placeholder="28.121" />
+              <input id="d-lon" type="number" step="any" placeholder="-15.431" />
+            </div>
+          </div>
+
+          <div class="field">
+            <label>Salida</label>
+            <input id="depart-at" type="datetime-local" />
+            <p class="muted">Si vacío, usa <code>now</code>.</p>
+          </div>
+
+          <div class="field">
+            <label>Preferencia</label>
+            <select id="preference">
+              <option value="fastest">Más rápida</option>
+              <option value="least_walking">Caminar menos</option>
+            </select>
+          </div>
+
+          <div class="buttons">
+            <button id="btn-sync">Calcular</button>
+            <button id="btn-async">Calcular async</button>
+            <button id="btn-clear" class="btn-secondary">Limpiar</button>
+          </div>
+
+          <div class="field">
+            <label>Request ID (async)</label>
+            <div class="row">
+              <input id="request-id" placeholder="pegalo aquí" />
+              <button id="btn-poll">Consultar</button>
+            </div>
           </div>
         </div>
 
-        <div class="field">
-          <label>Destino (lat, lon)</label>
-          <div class="row">
-            <input id="d-lat" type="number" step="any" placeholder="28.121" />
-            <input id="d-lon" type="number" step="any" placeholder="-15.431" />
+        <div id="view-realtime" class="view hidden">
+          <p class="muted">Selecciona líneas para ver su recorrido y las guaguas (actualiza cada 30s).</p>
+
+          <div class="field">
+            <label>Líneas</label>
+            <div id="rt-lines" class="rt-lines" aria-live="polite"></div>
           </div>
-        </div>
 
-        <div class="field">
-          <label>Salida</label>
-          <input id="depart-at" type="datetime-local" />
-          <p class="muted">Si vacío, usa <code>now</code>.</p>
-        </div>
-
-        <div class="field">
-          <label>Preferencia</label>
-          <select id="preference">
-            <option value="fastest">Más rápida</option>
-            <option value="least_walking">Caminar menos</option>
-          </select>
-        </div>
-
-        <div class="buttons">
-          <button id="btn-sync">Calcular</button>
-          <button id="btn-async">Calcular async</button>
-          <button id="btn-clear" class="btn-secondary">Limpiar</button>
-        </div>
-
-        <div class="field">
-          <label>Request ID (async)</label>
-          <div class="row">
-            <input id="request-id" placeholder="pegalo aquí" />
-            <button id="btn-poll">Consultar</button>
+          <div class="buttons">
+            <button id="btn-rt-refresh">Actualizar ahora</button>
+            <button id="btn-rt-clear" class="btn-secondary">Quitar capas</button>
           </div>
         </div>
 

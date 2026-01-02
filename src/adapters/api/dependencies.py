@@ -11,6 +11,7 @@ from src.adapters.persistence.dynamodb_route_result_repository import (
 from src.adapters.persistence.local_gtfs_repository import LocalGtfsRepository
 from src.app.ports.output import IMapProvider
 from src.app.services.multimodal_routing_service import MultimodalRoutingService
+from src.app.services.realtime_view_service import RealtimeViewService
 from src.app.services.route_jobs_service import RouteJobsService
 
 
@@ -49,3 +50,19 @@ def get_route_jobs_service() -> RouteJobsService:
     queue = SQSQueueAdapter()
     results = DynamoDbRouteResultRepository()
     return RouteJobsService(queue_service=queue, result_repository=results)
+
+
+def get_realtime_view_service() -> RealtimeViewService:
+    gtfs_repo = LocalGtfsRepository()
+
+    vehicle_provider = None
+    if os.getenv("GTFS_RT_VEHICLE_POSITIONS_URL"):
+        from src.adapters.realtime.http_gtfs_realtime_vehicle_provider import (
+            HttpGtfsRealtimeVehicleProvider,
+        )
+
+        vehicle_provider = HttpGtfsRealtimeVehicleProvider()
+
+    return RealtimeViewService(
+        gtfs_repository=gtfs_repo, vehicle_provider=vehicle_provider
+    )

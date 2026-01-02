@@ -1,8 +1,25 @@
 const output = document.getElementById('output');
 const statusBox = document.getElementById('status');
 
+// Views
+const tabRouteBtn = document.getElementById('tab-route');
+const tabRealtimeBtn = document.getElementById('tab-realtime');
+const viewRoute = document.getElementById('view-route');
+const viewRealtime = document.getElementById('view-realtime');
+
+const rtLinesBox = document.getElementById('rt-lines');
+const btnRtRefresh = document.getElementById('btn-rt-refresh');
+const btnRtClear = document.getElementById('btn-rt-clear');
+
 let statusTimer = null;
 let statusStartedAt = null;
+
+let realtimeViewActive = false;
+let rtRoutesById = new Map(); // route_id -> route meta
+let rtSelectedRouteIds = new Set();
+let rtLineLayers = new Map(); // route_id -> polyline layer
+let rtVehicleMarkers = new Map(); // vehicle key -> marker
+let rtPollTimer = null;
 
 function setStatus(text) {
   if (!statusBox) return;
@@ -145,6 +162,18 @@ function clearRouteLayers() {
     try { m.remove(); } catch (_) {}
   }
   stopMarkers = [];
+}
+
+function clearRealtimeLayers() {
+  for (const layer of rtLineLayers.values()) {
+    try { layer.remove(); } catch (_) {}
+  }
+  rtLineLayers = new Map();
+
+  for (const marker of rtVehicleMarkers.values()) {
+    try { marker.remove(); } catch (_) {}
+  }
+  rtVehicleMarkers = new Map();
 }
 
 function normalizeGtfsColor(raw) {
@@ -459,14 +488,235 @@ function drawRoute(route) {
 }
 
 map.on('click', (e) => {
+  if (realtimeViewActive) return;
   if (!originMarker) return setMarker('origin', e.latlng);
   if (!destMarker) return setMarker('dest', e.latlng);
   // If both are set, overwrite destination.
   return setMarker('dest', e.latlng);
 });
 
+function setActiveView(which) {
+  const isRealtime = which === 'realtime';
+  realtimeViewActive = isRealtime;
+
+  if (viewRoute) viewRoute.classList.toggle('hidden', isRealtime);
+  if (viewRealtime) viewRealtime.classList.toggle('hidden', !isRealtime);
+
+  if (tabRouteBtn) {
+    tabRouteBtn.classList.toggle('tab-active', !isRealtime);
+    tabRouteBtn.setAttribute('aria-selected', String(!isRealtime));
+  }
+  if (tabRealtimeBtn) {
+    tabRealtimeBtn.classList.toggle('tab-active', isRealtime);
+    tabRealtimeBtn.setAttribute('aria-selected', String(isRealtime));
+  }
+
+  if (isRealtime) {
+    clearRouteLayers();
+    setOutputText('');
+    startRealtimeView();
+  } else {
+    stopRealtimeView();
+    clearRealtimeLayers();
+    setStatus('');
+  }
+}
+
+function routeDisplayName(r) {
+  if (!r) return '';
+  return r.short_name || r.long_name || r.route_id || '';
+}
+
+function routeDisplayDetail(r) {
+  if (!r) return '';
+  const parts = [];
+  if (r.long_name && r.short_name && r.long_name !== r.short_name) parts.push(r.long_name);
+  return parts.join(' · ');
+}
+
+function rtRouteColor(r) {
+  return normalizeGtfsColor(r?.color) || hashToColorHex(r?.route_id || routeDisplayName(r));
+}
+
+function renderRealtimeRoutes(routes) {
+  if (!rtLinesBox) return;
+  if (!Array.isArray(routes) || routes.length === 0) {
+    rtLinesBox.innerHTML = '<div class="muted">No hay líneas.</div>';
+    return;
+  }
+
+  rtRoutesById = new Map();
+  for (const r of routes) {
+    if (r && r.route_id) rtRoutesById.set(r.route_id, r);
+  }
+
+  const html = routes.map((r) => {
+    const id = escapeHtml(r.route_id);
+    const name = escapeHtml(routeDisplayName(r) || r.route_id);
+    const detail = escapeHtml(routeDisplayDetail(r));
+    const color = escapeHtml(rtRouteColor(r));
+    const checked = rtSelectedRouteIds.has(r.route_id) ? 'checked' : '';
+    return `
+      <label class="rt-line">
+        <input type="checkbox" data-route-id="${id}" ${checked} />
+        <span class="rt-line-label">
+          <span class="line-dot" style="background:${color}"></span>
+          <span><b>${name}</b>${detail ? ` <span class="muted">${detail}</span>` : ''}</span>
+        </span>
+      </label>
+    `;
+  }).join('');
+
+  rtLinesBox.innerHTML = html;
+
+  for (const el of rtLinesBox.querySelectorAll('input[type=checkbox][data-route-id]')) {
+    el.addEventListener('change', async (ev) => {
+      const rid = ev.target?.getAttribute('data-route-id');
+      if (!rid) return;
+      if (ev.target.checked) rtSelectedRouteIds.add(rid);
+      else rtSelectedRouteIds.delete(rid);
+
+      await syncRealtimeLayers();
+      await refreshRealtimeVehicles();
+    });
+  }
+}
+
+async function loadRealtimeRoutes() {
+  try {
+    startStatusTimer('Cargando líneas (tiempo real)...');
+    const routes = await getJson('/api/realtime/routes');
+    renderRealtimeRoutes(routes);
+    stopStatusTimer('Líneas cargadas.');
+  } catch (e) {
+    stopStatusTimer('Error cargando líneas.');
+    if (rtLinesBox) rtLinesBox.innerHTML = `<div class="muted">${escapeHtml(String(e))}</div>`;
+  }
+}
+
+async function ensureRouteShape(routeId) {
+  if (rtLineLayers.has(routeId)) return;
+
+  const route = rtRoutesById.get(routeId);
+  const color = rtRouteColor(route);
+
+  const data = await getJson(`/api/realtime/routes/${encodeURIComponent(routeId)}/shape`);
+  const pts = Array.isArray(data?.points) ? data.points : [];
+  const latlngs = pts
+    .filter((p) => p && typeof p.lat === 'number' && typeof p.lon === 'number')
+    .map((p) => [p.lat, p.lon]);
+
+  if (latlngs.length < 2) return;
+
+  const layer = L.polyline(latlngs, { weight: 5, color, opacity: 0.7 }).addTo(map);
+  layer.bindPopup(`Línea ${escapeHtml(routeDisplayName(route) || routeId)}`);
+  rtLineLayers.set(routeId, layer);
+}
+
+async function syncRealtimeLayers() {
+  // Add missing shapes
+  for (const rid of rtSelectedRouteIds) {
+    try {
+      await ensureRouteShape(rid);
+    } catch (_) {
+      // ignore per-route errors
+    }
+  }
+
+  // Remove unselected shapes
+  for (const [rid, layer] of rtLineLayers.entries()) {
+    if (!rtSelectedRouteIds.has(rid)) {
+      try { layer.remove(); } catch (_) {}
+      rtLineLayers.delete(rid);
+    }
+  }
+}
+
+function vehicleKey(v, idx) {
+  return v.vehicle_id || v.trip_id || `${v.route_id || 'unknown'}:${idx}`;
+}
+
+async function refreshRealtimeVehicles() {
+  if (!realtimeViewActive) return;
+
+  if (!rtSelectedRouteIds || rtSelectedRouteIds.size === 0) {
+    setStatus('Selecciona al menos una línea.');
+    // Clear vehicles if nothing selected.
+    for (const marker of rtVehicleMarkers.values()) {
+      try { marker.remove(); } catch (_) {}
+    }
+    rtVehicleMarkers = new Map();
+    return;
+  }
+
+  try {
+    const qs = new URLSearchParams();
+    for (const rid of rtSelectedRouteIds) qs.append('route_id', rid);
+    const data = await getJson(`/api/realtime/vehicles?${qs.toString()}`);
+    const vehicles = Array.isArray(data?.vehicles) ? data.vehicles : [];
+
+    const seen = new Set();
+    vehicles.forEach((v, idx) => {
+      if (!v || typeof v.lat !== 'number' || typeof v.lon !== 'number') return;
+      const key = vehicleKey(v, idx);
+      seen.add(key);
+
+      const r = v.route_id ? rtRoutesById.get(v.route_id) : null;
+      const color = rtRouteColor(r || { route_id: v.route_id || key });
+
+      const label = `Vehículo ${escapeHtml(v.vehicle_id || '?')}<br/>Línea ${escapeHtml(routeDisplayName(r) || v.route_id || '?')}`;
+
+      const existing = rtVehicleMarkers.get(key);
+      if (existing) {
+        existing.setLatLng([v.lat, v.lon]);
+      } else {
+        const marker = L.circleMarker([v.lat, v.lon], {
+          radius: 7,
+          weight: 2,
+          color: '#111111',
+          fillColor: color,
+          fillOpacity: 1.0,
+        }).addTo(map);
+        marker.bindPopup(label);
+        rtVehicleMarkers.set(key, marker);
+      }
+    });
+
+    // Remove stale markers
+    for (const [key, marker] of rtVehicleMarkers.entries()) {
+      if (!seen.has(key)) {
+        try { marker.remove(); } catch (_) {}
+        rtVehicleMarkers.delete(key);
+      }
+    }
+
+    setStatus(`Tiempo real: ${vehicles.length} guaguas.`);
+  } catch (e) {
+    setStatus(`Tiempo real: error obteniendo guaguas.\n${String(e)}`);
+  }
+}
+
+function startRealtimeView() {
+  stopRealtimeView();
+  if (!rtRoutesById || rtRoutesById.size === 0) {
+    loadRealtimeRoutes().then(async () => {
+      await syncRealtimeLayers();
+      await refreshRealtimeVehicles();
+    });
+  }
+  refreshRealtimeVehicles();
+  rtPollTimer = setInterval(refreshRealtimeVehicles, 30000);
+}
+
+function stopRealtimeView() {
+  if (rtPollTimer) clearInterval(rtPollTimer);
+  rtPollTimer = null;
+}
+
 function clearAll() {
   try { stopStatusTimer(''); } catch (_) {}
+  stopRealtimeView();
+  clearRealtimeLayers();
   clearRouteLayers();
 
   if (originMarker) { try { originMarker.remove(); } catch (_) {} }
@@ -562,4 +812,24 @@ document.getElementById('btn-poll').addEventListener('click', async () => {
 
 document.getElementById('btn-clear').addEventListener('click', () => {
   clearAll();
+});
+
+// Tabs + realtime controls
+if (tabRouteBtn) tabRouteBtn.addEventListener('click', () => setActiveView('route'));
+if (tabRealtimeBtn) tabRealtimeBtn.addEventListener('click', () => setActiveView('realtime'));
+
+if (btnRtRefresh) btnRtRefresh.addEventListener('click', async () => {
+  await syncRealtimeLayers();
+  await refreshRealtimeVehicles();
+});
+
+if (btnRtClear) btnRtClear.addEventListener('click', () => {
+  rtSelectedRouteIds = new Set();
+  clearRealtimeLayers();
+  if (rtLinesBox) {
+    for (const el of rtLinesBox.querySelectorAll('input[type=checkbox][data-route-id]')) {
+      el.checked = false;
+    }
+  }
+  setStatus('Capas de tiempo real eliminadas.');
 });
