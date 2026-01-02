@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import Enum
 
 from .geo import GeoPoint
@@ -28,6 +29,12 @@ class RouteLeg:
     mode: TravelMode
     origin: GeoPoint
     destination: GeoPoint
+    origin_name: str | None = None
+    destination_name: str | None = None
+    origin_stop_id: str | None = None
+    destination_stop_id: str | None = None
+    depart_at: datetime | None = None
+    arrive_at: datetime | None = None
     distance_m: float | None = None
     duration_s: float | None = None
     stops: tuple[Stop, ...] = ()
@@ -51,6 +58,18 @@ class Route:
 
     @property
     def total_duration_s(self) -> float | None:
+        # Preferred: if we have timestamps, compute wall-clock duration.
+        # This naturally includes waiting time and transfers.
+        if self.legs:
+            first_depart = next((l.depart_at for l in self.legs if l.depart_at), None)
+            last_arrive = next(
+                (l.arrive_at for l in reversed(self.legs) if l.arrive_at), None
+            )
+            if first_depart and last_arrive:
+                delta = (last_arrive - first_depart).total_seconds()
+                return float(max(0.0, delta))
+
+        # Fallback: sum of leg durations (does not include waiting).
         durations = [leg.duration_s for leg in self.legs]
         if any(d is None for d in durations):
             return None

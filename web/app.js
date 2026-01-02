@@ -28,8 +28,23 @@ function stopStatusTimer(finalText) {
   if (finalText !== undefined) setStatus(finalText);
 }
 
-function setOutput(text) {
+function setOutputText(text) {
+  if (!output) return;
   output.textContent = String(text || '');
+}
+
+function setOutputHtml(html) {
+  if (!output) return;
+  output.innerHTML = String(html || '');
+}
+
+function escapeHtml(s) {
+  return String(s || '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
 }
 
 function num(id) {
@@ -166,6 +181,12 @@ function fmtCoord(p) {
   return `${lat}, ${lon}`;
 }
 
+function fmtPlace(p, name) {
+  const n = typeof name === 'string' ? name.trim() : '';
+  if (n) return n;
+  return fmtCoord(p);
+}
+
 function fmtMeters(m) {
   if (typeof m !== 'number' || Number.isNaN(m)) return '';
   if (m >= 1000) return `${(m / 1000).toFixed(2)} km`;
@@ -179,6 +200,39 @@ function fmtSeconds(s) {
   const h = Math.floor(mins / 60);
   const m = mins % 60;
   return `${h} h ${m} min`;
+}
+
+function parseIsoDate(x) {
+  if (!x) return null;
+  const d = new Date(x);
+  if (Number.isNaN(d.getTime())) return null;
+  return d;
+}
+
+function pad2(n) {
+  return String(n).padStart(2, '0');
+}
+
+function fmtHHMM(d) {
+  if (!d) return '';
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
+function fmtTimeRange(departAt, arriveAt) {
+  const d0 = parseIsoDate(departAt);
+  const d1 = parseIsoDate(arriveAt);
+  if (d0 && d1) return `${fmtHHMM(d0)} → ${fmtHHMM(d1)}`;
+  if (d0) return `Salida ${fmtHHMM(d0)}`;
+  if (d1) return `Llega ${fmtHHMM(d1)}`;
+  return '';
+}
+
+function diffMinutes(a, b) {
+  const d0 = parseIsoDate(a);
+  const d1 = parseIsoDate(b);
+  if (!d0 || !d1) return null;
+  const ms = d1.getTime() - d0.getTime();
+  return Math.round(ms / 60000);
 }
 
 function routeToSteps(route) {
@@ -214,6 +268,122 @@ function routeToSteps(route) {
   }
 
   return lines.join('\n');
+}
+
+function renderItinerary(route) {
+  if (!route || !Array.isArray(route.legs) || route.legs.length === 0) {
+    return `<div class="itinerary-title">Itinerario</div><div class="muted">No hay ruta.</div>`;
+  }
+
+  const items = [];
+  for (let i = 0; i < route.legs.length; i++) {
+    const leg = route.legs[i];
+    items.push({ kind: 'leg', leg, i });
+
+    const next = route.legs[i + 1];
+    if (leg && leg.mode === 'bus' && next && next.mode === 'bus') {
+      items.push({ kind: 'transfer', from: leg, to: next });
+    }
+  }
+
+  const stepsHtml = items.map((item, idx) => {
+    if (item.kind === 'transfer') {
+      const place = fmtPlace(item.from.destination, item.from.destination_name);
+      const stopId = item.from.destination_stop_id ? ` <span class="muted-inline">(#${escapeHtml(item.from.destination_stop_id)})</span>` : '';
+      const waitMin = diffMinutes(item.from.arrive_at, item.to.depart_at);
+      const timeRange = fmtTimeRange(item.from.arrive_at, item.to.depart_at);
+      const chips = [
+        (waitMin !== null && waitMin > 0) ? `Espera ${waitMin} min` : '',
+        timeRange,
+      ].filter(Boolean).map((x) => `<span class="chip">${escapeHtml(x)}</span>`).join('');
+
+      return `
+        <div class="step">
+          <div class="step-icon">⇄</div>
+          <div class="step-main">
+            <div class="step-head">
+              <div class="step-title">Transbordo</div>
+              <div class="chips">${chips}</div>
+            </div>
+            <div class="step-sub">En <b>${escapeHtml(place)}</b>${stopId}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    const leg = item.leg;
+    const dist = fmtMeters(leg.distance_m);
+    const dur = fmtSeconds(leg.duration_s);
+    const timeRange = fmtTimeRange(leg.depart_at, leg.arrive_at);
+    const chips = [dist, dur, timeRange].filter(Boolean).map((x) => `<span class="chip">${escapeHtml(x)}</span>`).join('');
+
+    if (leg.mode === 'walk') {
+      const from = fmtPlace(leg.origin, leg.origin_name);
+      const to = fmtPlace(leg.destination, leg.destination_name);
+      const toStop = leg.destination_stop_id ? ` <span class="muted-inline">(#${escapeHtml(leg.destination_stop_id)})</span>` : '';
+
+      return `
+        <div class="step">
+          <div class="step-icon">W</div>
+          <div class="step-main">
+            <div class="step-head">
+              <div class="step-title">Caminar</div>
+              <div class="chips">${chips}</div>
+            </div>
+            <div class="step-sub">Desde <b>${escapeHtml(from)}</b> hasta <b>${escapeHtml(to)}</b>${toStop}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    const line = leg.line || {};
+    const name = line.short_name || line.long_name || line.route_id || 'Línea';
+    const color = normalizeGtfsColor(line.color) || hashToColorHex(line.route_id || leg.trip_id || name);
+    const from = fmtPlace(leg.origin, leg.origin_name);
+    const to = fmtPlace(leg.destination, leg.destination_name);
+    const fromStop = leg.origin_stop_id ? ` <span class="muted-inline">(#${escapeHtml(leg.origin_stop_id)})</span>` : '';
+    const toStop = leg.destination_stop_id ? ` <span class="muted-inline">(#${escapeHtml(leg.destination_stop_id)})</span>` : '';
+
+    const prevLeg = item.i > 0 ? route.legs[item.i - 1] : null;
+    const waitMin = prevLeg && prevLeg.arrive_at ? diffMinutes(prevLeg.arrive_at, leg.depart_at) : null;
+    const waitNote = (waitMin !== null && waitMin > 0)
+      ? ` <span class="muted-inline">(Espera ${escapeHtml(waitMin)} min)</span>`
+      : '';
+
+    return `
+      <div class="step">
+        <div class="step-icon bus">B</div>
+        <div class="step-main">
+          <div class="step-head">
+            <div class="step-title">
+              <span class="line-badge">
+                <span class="line-dot" style="background:${escapeHtml(color)}"></span>
+                Guagua ${escapeHtml(name)}
+              </span>
+            </div>
+            <div class="chips">${chips}</div>
+          </div>
+          <div class="step-sub">Desde <b>${escapeHtml(from)}</b>${fromStop} hasta <b>${escapeHtml(to)}</b>${toStop}</div>
+          ${waitNote ? `<div class="step-sub">${waitNote}</div>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  const totalDist = typeof route.total_distance_m === 'number' ? fmtMeters(route.total_distance_m) : '';
+  const totalDur = typeof route.total_duration_s === 'number' ? fmtSeconds(route.total_duration_s) : '';
+
+  const summaryLeft = totalDist ? `Distancia total: <b>${escapeHtml(totalDist)}</b>` : '';
+  const summaryRight = totalDur ? `Duración total: <b>${escapeHtml(totalDur)}</b>` : '';
+
+  return `
+    <div class="itinerary-title">Itinerario</div>
+    <div class="steps">${stepsHtml}</div>
+    <div class="itinerary-summary">
+      <div>${summaryLeft}</div>
+      <div>${summaryRight}</div>
+    </div>
+  `;
 }
 
 function addStopMarker(lat, lon, opts) {
@@ -311,34 +481,34 @@ function clearAll() {
   document.getElementById('request-id').value = '';
 
   setStatus('');
-  setOutput('');
+  setOutputText('');
 }
 
 // Buttons
 
 document.getElementById('btn-sync').addEventListener('click', async () => {
   try {
-    setOutput('');
+    setOutputText('');
     startStatusTimer('Calculando ruta (sync).\nNota: la primera vez puede tardar porque se descarga/construye el grafo OSM.');
     const body = buildRequest();
     const data = await postJson('/api/routes', body);
     drawRoute(data);
-    setOutput(routeToSteps(data));
+    setOutputHtml(renderItinerary(data));
     stopStatusTimer('Ruta calculada (sync).');
   } catch (e) {
     stopStatusTimer('Error calculando (sync).');
-    setOutput(String(e));
+    setOutputText(String(e));
   }
 });
 
 document.getElementById('btn-async').addEventListener('click', async () => {
   try {
-    setOutput('');
+    setOutputText('');
     startStatusTimer('Encolando ruta (async)...');
     const body = buildRequest();
     const data = await postJson('/api/routes/async', body);
     document.getElementById('request-id').value = data.request_id || '';
-    setOutput(`Job encolado. request_id=${data.request_id || ''}`);
+    setOutputText(`Job encolado. request_id=${data.request_id || ''}`);
     stopStatusTimer(`Job encolado. request_id=${data.request_id}`);
 
     // Auto-poll until completion to avoid user waiting blind.
@@ -348,12 +518,12 @@ document.getElementById('btn-async').addEventListener('click', async () => {
         const job = await getJson(`/api/routes/jobs/${encodeURIComponent(data.request_id)}`);
         if (job.status === 'SUCCESS' && job.result) {
           drawRoute(job.result);
-          setOutput(routeToSteps(job.result));
+          setOutputHtml(renderItinerary(job.result));
           stopStatusTimer('Ruta calculada (async).');
           return;
         }
         if (job.status === 'ERROR') {
-          setOutput(`Error: ${job.error || 'unknown'}`);
+          setOutputText(`Error: ${job.error || 'unknown'}`);
           stopStatusTimer('Error calculando (async).');
           return;
         }
@@ -363,7 +533,7 @@ document.getElementById('btn-async').addEventListener('click', async () => {
     }
   } catch (e) {
     stopStatusTimer('Error en async.');
-    setOutput(String(e));
+    setOutputText(String(e));
   }
 });
 
@@ -371,22 +541,22 @@ document.getElementById('btn-poll').addEventListener('click', async () => {
   try {
     const rid = val('request-id').trim();
     if (!rid) throw new Error('Falta request_id');
-    setOutput('');
+    setOutputText('');
     startStatusTimer('Consultando estado del job...');
     const data = await getJson(`/api/routes/jobs/${encodeURIComponent(rid)}`);
 
     if (data && data.status === 'SUCCESS' && data.result) {
       drawRoute(data.result);
-      setOutput(routeToSteps(data.result));
+      setOutputHtml(renderItinerary(data.result));
     } else if (data && data.status === 'ERROR') {
-      setOutput(`Error: ${data.error || 'unknown'}`);
+      setOutputText(`Error: ${data.error || 'unknown'}`);
     } else {
-      setOutput(`Estado: ${data.status || 'UNKNOWN'}`);
+      setOutputText(`Estado: ${data.status || 'UNKNOWN'}`);
     }
     stopStatusTimer(`Estado: ${data.status || 'UNKNOWN'}`);
   } catch (e) {
     stopStatusTimer('Error consultando job.');
-    setOutput(String(e));
+    setOutputText(String(e));
   }
 });
 

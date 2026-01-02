@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Literal, Mapping
 
 import networkx as nx
@@ -53,6 +53,9 @@ class MultimodalRoutingService:
         street_graph = self.map_provider.get_street_graph(
             center=center, dist_m=int(self.street_graph_dist_m)
         )
+
+        origin_street = self._street_name_for_point(street_graph, origin)
+        destination_street = self._street_name_for_point(street_graph, destination)
 
         try:
             # 2) Candidate stops for access/egress.
@@ -127,11 +130,19 @@ class MultimodalRoutingService:
                 o_walk_m = d
                 o_walk_s = d / self.walk_speed_mps
 
+            walk1_depart = depart_at
+            walk1_arrive = depart_at + timedelta(seconds=float(o_walk_s))
+
             legs.append(
                 RouteLeg(
                     mode=TravelMode.WALK,
                     origin=origin,
                     destination=origin_stop.location,
+                    origin_name=origin_street,
+                    destination_name=origin_stop.name,
+                    destination_stop_id=origin_stop.id,
+                    depart_at=walk1_depart,
+                    arrive_at=walk1_arrive,
                     distance_m=float(o_walk_m),
                     duration_s=float(o_walk_s),
                     stops=(),
@@ -165,6 +176,9 @@ class MultimodalRoutingService:
                 boarded_at = feed.stops_by_id[g[0].dep_stop_id].location
                 alighted_at = feed.stops_by_id[g[-1].arr_stop_id].location
 
+                boarded_stop = feed.stops_by_id.get(g[0].dep_stop_id)
+                alighted_stop = feed.stops_by_id.get(g[-1].arr_stop_id)
+
                 # Build stop sequence for this trip group.
                 stop_ids: list[str] = [g[0].dep_stop_id]
                 stop_ids.extend(c.arr_stop_id for c in g)
@@ -196,6 +210,13 @@ class MultimodalRoutingService:
                 bus_distance_m = self._polyline_distance_m(path)
                 bus_duration_s = float(max(0, g[-1].arr_time_s - g[0].dep_time_s))
 
+                bus_depart = self._service_datetime_from_seconds(
+                    depart_at, int(g[0].dep_time_s)
+                )
+                bus_arrive = self._service_datetime_from_seconds(
+                    depart_at, int(g[-1].arr_time_s)
+                )
+
                 line = TransitLine(
                     route_id=route.route_id
                     if route
@@ -211,6 +232,12 @@ class MultimodalRoutingService:
                         mode=TravelMode.BUS,
                         origin=boarded_at,
                         destination=alighted_at,
+                        origin_name=boarded_stop.name if boarded_stop else None,
+                        destination_name=alighted_stop.name if alighted_stop else None,
+                        origin_stop_id=boarded_stop.id if boarded_stop else None,
+                        destination_stop_id=alighted_stop.id if alighted_stop else None,
+                        depart_at=bus_depart,
+                        arrive_at=bus_arrive,
                         distance_m=float(bus_distance_m),
                         duration_s=float(bus_duration_s),
                         stops=tuple(stops_seq),
@@ -220,11 +247,28 @@ class MultimodalRoutingService:
                     )
                 )
 
+            last_arrive = None
+            for leg in reversed(legs):
+                if leg.arrive_at is not None:
+                    last_arrive = leg.arrive_at
+                    break
+
+            walk2_depart = last_arrive
+            if walk2_depart is None:
+                # Fallback (shouldn't happen): assume departure at requested time.
+                walk2_depart = depart_at
+            walk2_arrive = walk2_depart + timedelta(seconds=float(dest_walk_s))
+
             legs.append(
                 RouteLeg(
                     mode=TravelMode.WALK,
                     origin=dest_stop.location,
                     destination=destination,
+                    origin_name=dest_stop.name,
+                    destination_name=destination_street,
+                    origin_stop_id=dest_stop.id,
+                    depart_at=walk2_depart,
+                    arrive_at=walk2_arrive,
                     distance_m=float(dest_walk_m),
                     duration_s=float(dest_walk_s),
                     stops=(),
@@ -242,21 +286,71 @@ class MultimodalRoutingService:
     def _walking_only_route(
         self, graph: Any, origin: GeoPoint, destination: GeoPoint
     ) -> Route:
+        origin_street = self._street_name_for_point(graph, origin)
+        destination_street = self._street_name_for_point(graph, destination)
         dist_m = self._walk_distance_m(graph, origin, destination)
         if dist_m is None:
             dist_m = haversine_distance_m(origin, destination)
         dur_s = float(dist_m) / float(self.walk_speed_mps)
 
+        depart_at = datetime.now()
+        arrive_at = depart_at + timedelta(seconds=float(dur_s))
         leg = RouteLeg(
             mode=TravelMode.WALK,
             origin=origin,
             destination=destination,
+            origin_name=origin_street,
+            destination_name=destination_street,
+            depart_at=depart_at,
+            arrive_at=arrive_at,
             distance_m=float(dist_m),
             duration_s=float(dur_s),
             stops=(),
             path=self._walk_path_points(graph, origin, destination),
         )
         return Route(origin=origin, destination=destination, legs=(leg,))
+
+    def _service_datetime_from_seconds(self, base: datetime, seconds: int) -> datetime:
+        """Convert GTFS 'seconds since midnight' into an absolute datetime.
+
+        Supports times over 24h (e.g. 25:10) by rolling into the next day.
+        We treat the provided base datetime as the service day.
+        """
+
+        day0 = base.replace(hour=0, minute=0, second=0, microsecond=0)
+        return day0 + timedelta(seconds=int(seconds))
+
+    def _street_name_for_point(self, graph: Any, point: GeoPoint) -> str | None:
+        """Best-effort street name for a coordinate.
+
+        We use the nearest OSM edge and read its 'name' attribute.
+        If OSMnx is unavailable or the edge has no name, returns None.
+        """
+
+        try:
+            import osmnx as ox  # type: ignore
+
+            u, v, k = ox.distance.nearest_edges(graph, X=point.lon, Y=point.lat)
+            data = None
+            if hasattr(graph, "get_edge_data"):
+                try:
+                    data = graph.get_edge_data(u, v, k)
+                except TypeError:
+                    # Some graph types ignore the key.
+                    data = graph.get_edge_data(u, v)
+
+            if not isinstance(data, dict):
+                return None
+
+            name = data.get("name")
+            if isinstance(name, (list, tuple)) and name:
+                name = name[0]
+            if isinstance(name, str):
+                name = name.strip()
+                return name or None
+            return None
+        except Exception:
+            return None
 
     def _polyline_distance_m(self, points: tuple[GeoPoint, ...]) -> float:
         if len(points) < 2:

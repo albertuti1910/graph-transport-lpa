@@ -23,6 +23,12 @@ class RouteLegSchema(BaseModel):
     mode: Literal["walk", "bus"]
     origin: GeoPointSchema
     destination: GeoPointSchema
+    origin_name: str | None = None
+    destination_name: str | None = None
+    origin_stop_id: str | None = None
+    destination_stop_id: str | None = None
+    depart_at: datetime | None = None
+    arrive_at: datetime | None = None
     distance_m: float | None = None
     duration_s: float | None = None
     path: list[GeoPointSchema] | None = None

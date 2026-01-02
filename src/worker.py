@@ -25,6 +25,20 @@ def _route_to_dict(route) -> dict:
                 "mode": leg.mode.value,
                 "origin": {"lat": leg.origin.lat, "lon": leg.origin.lon},
                 "destination": {"lat": leg.destination.lat, "lon": leg.destination.lon},
+                "origin_name": getattr(leg, "origin_name", None),
+                "destination_name": getattr(leg, "destination_name", None),
+                "origin_stop_id": getattr(leg, "origin_stop_id", None),
+                "destination_stop_id": getattr(leg, "destination_stop_id", None),
+                "depart_at": (
+                    getattr(leg, "depart_at", None).isoformat()
+                    if getattr(leg, "depart_at", None)
+                    else None
+                ),
+                "arrive_at": (
+                    getattr(leg, "arrive_at", None).isoformat()
+                    if getattr(leg, "arrive_at", None)
+                    else None
+                ),
                 "distance_m": leg.distance_m,
                 "duration_s": leg.duration_s,
                 "path": (
