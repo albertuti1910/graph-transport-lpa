@@ -86,5 +86,13 @@ Calcular rutas multimodales combinando:
 
 ## Riesgos / Limitaciones (MVP)
 
-- La web dibuja una línea directa (no geometría real de la ruta), porque el backend no expone polyline/shape todavía.
 - Routing transit es un MVP (CSA) y la integración walk+bus está simplificada.
+- Los resultados dependen de la validez temporal del GTFS (calendario/fechas) para la hora `depart_at`.
+- El rendimiento en “cold start” depende de la estrategia del grafo OSM (prebuilt vs construcción bajo demanda).
+
+## Datos devueltos por el backend (para la demo web)
+
+El endpoint `/routes` devuelve una `Route` con `legs`.
+
+- En legs de caminar: `path` contiene una polyline (secuencia de puntos) por calles.
+- En legs de guagua: `path` contiene la geometría del tramo usado (idealmente recortada a la parte necesaria) y `line` aporta metadata de la línea (nombre/color), además de `trip_id` para separar transbordos.

@@ -47,7 +47,7 @@ class AwsRuntimeConfig:
 
         Priority:
           1) ENDPOINT_URL (explicit override; preferred for LocalStack)
-          2) LOCALSTACK_ENDPOINT_URL if USE_LOCALSTACK is enabled (legacy)
+                    2) LOCALSTACK_ENDPOINT_URL if USE_LOCALSTACK is enabled (compat)
           3) None (AWS real)
         """
 

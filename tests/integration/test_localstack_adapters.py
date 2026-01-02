@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import pickle
 import time
 from uuid import uuid4
 
@@ -14,49 +13,7 @@ from src.adapters.messaging.sqs_queue_adapter import SQSQueueAdapter
 from src.adapters.persistence.dynamodb_route_result_repository import (
     DynamoDbRouteResultRepository,
 )
-from src.adapters.persistence.s3_graph_repository import S3GraphRepository
 from src.domain.models.geo import GeoPoint
-
-
-@pytest.mark.integration
-def test_s3_graph_repository_roundtrip_pickle(require_localstack: str) -> None:
-    bucket = "urbanpath-test-bucket"
-    key = "graphs/test.graph.pickle"
-
-    os.environ["S3_BUCKET"] = bucket
-    os.environ["S3_GRAPH_KEY"] = key
-    os.environ["GRAPH_FORMAT"] = "pickle"
-
-    s3 = s3_client()
-
-    # Create bucket (LocalStack is permissive; still include region config).
-    try:
-        s3.create_bucket(
-            Bucket=bucket,
-            CreateBucketConfiguration={
-                "LocationConstraint": os.environ.get("AWS_REGION", "eu-west-1")
-            },
-        )
-    except Exception:
-        # Bucket may already exist from a previous run.
-        pass
-
-    g = nx.Graph()
-    g.add_node("a", x=-15.43, y=28.12)
-    g.add_node("b", x=-15.431, y=28.121)
-    g.add_edge("a", "b", length=100.0)
-
-    s3.put_object(Bucket=bucket, Key=key, Body=pickle.dumps(g))
-
-    repo = S3GraphRepository()
-    repo.load_graph()
-
-    origin = GeoPoint(lat=28.12, lon=-15.43)
-    destination = GeoPoint(lat=28.121, lon=-15.431)
-
-    route = repo.find_path(origin, destination)
-    assert route.legs
-    assert route.legs[0].distance_m == 100.0
 
 
 @pytest.mark.integration

@@ -1,5 +1,7 @@
-from .s3_graph_repository import S3GraphRepository
+from .dynamodb_route_result_repository import DynamoDbRouteResultRepository
+from .local_gtfs_repository import LocalGtfsRepository
 
 __all__ = [
-    "S3GraphRepository",
+    "DynamoDbRouteResultRepository",
+    "LocalGtfsRepository",
 ]

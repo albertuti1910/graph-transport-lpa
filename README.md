@@ -75,10 +75,12 @@ docker volume rm graph-transport-lpa_osm-prebuilt graph-transport-lpa_osm-cache
 docker compose -f docker-compose.demo.yml up -d --build
 ```
 
+Nota: si tu proyecto de Compose no se llama `graph-transport-lpa`, lista los volúmenes con `docker volume ls | grep osm-prebuilt` y borra el que corresponda.
+
 Para inspeccionar el volumen:
 
 ```bash
-docker exec -i graph-transport-lpa-api-1 sh -lc 'ls -lah /app/osm_prebuilt'
+docker compose -f docker-compose.demo.yml exec api sh -lc 'ls -lah /app/osm_prebuilt'
 ```
 
 ### AWS: usar un grafo fijo en S3 (sin reconstruir)
@@ -133,7 +135,7 @@ Notas:
 
 ## Mantenimiento del repo
 
-Checklist de higiene (placeholders/legacy y qué se usa realmente): [docs/repo-hygiene.md](docs/repo-hygiene.md)
+Checklist de higiene del repo: [docs/repo-hygiene.md](docs/repo-hygiene.md)
 
 ## Sandbox AWS (mínimo viable)
 

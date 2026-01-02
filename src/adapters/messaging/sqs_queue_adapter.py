@@ -18,7 +18,7 @@ class SQSQueueAdapter(IQueueService):
     Env vars:
       - SQS_QUEUE_URL
             - ENDPOINT_URL (preferred for LocalStack)
-            - USE_LOCALSTACK, LOCALSTACK_ENDPOINT_URL, AWS_REGION (legacy)
+            - USE_LOCALSTACK, LOCALSTACK_ENDPOINT_URL, AWS_REGION (compat)
     """
 
     queue_url: str | None = None

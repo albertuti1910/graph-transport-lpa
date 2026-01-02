@@ -20,14 +20,9 @@ Módulos implementados:
 - `infra/modules/messaging`
 - `infra/modules/database`
 
-## Qué es placeholder
+## Alcance
 
-Estos módulos/envs están vacíos hoy:
-
-- `infra/modules/compute`
-- `infra/modules/networking`
-- `infra/envs/dev`
-- `infra/envs/prod`
+Esta carpeta cubre **recursos gestionados** (S3/SQS/DynamoDB). El despliegue de cómputo (API/worker) y red (VPC/ALB) no está automatizado aquí.
 
 ## Relación con la demo
 

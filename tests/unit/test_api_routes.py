@@ -10,7 +10,7 @@ from src.domain.models import GeoPoint, Route, RouteLeg, TravelMode
 from src.main import app
 
 
-class _FakeRoutingService:
+class _FakeMultimodalRoutingService:
     def calculate_route(
         self,
         *,
@@ -56,7 +56,7 @@ class _FakeJobsService:
 @pytest.mark.anyio
 async def test_post_routes_returns_route() -> None:
     def _override():
-        return _FakeRoutingService()
+        return _FakeMultimodalRoutingService()
 
     app.dependency_overrides[get_routing_service] = _override
 
