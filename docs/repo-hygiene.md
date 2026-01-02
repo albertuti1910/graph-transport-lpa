@@ -16,6 +16,11 @@ Este documento describe cómo está organizado el proyecto **según el código a
   - OSM street graph (OSMnx): `src/adapters/maps/osmnx_map_adapter.py`
   - Caché de grafos OSM en S3: `src/adapters/maps/s3_cached_map_adapter.py`
 
+## Documentación
+
+- Arquitectura (niveles aplicación y tecnología): `docs/architecture.md`
+- Matriz de requisitos (enunciado → evidencia): `docs/requirements-matrix.md`
+
 ## Entornos
 
 - Demo local (UI + backend + worker + LocalStack): `docker-compose.demo.yml` + `web/`

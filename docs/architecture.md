@@ -5,6 +5,8 @@ Esta documentación está orientada a “frameworks de arquitecturas empresarial
 - **Nivel Aplicación**: componentes lógicos, responsabilidades, contratos.
 - **Nivel Tecnología**: infraestructura, runtime, servicios cloud (AWS/LocalStack) y despliegue.
 
+Checklist del enunciado (matriz de requisitos): [docs/requirements-matrix.md](requirements-matrix.md)
+
 ## Nivel Aplicación
 
 ### Objetivo
@@ -34,6 +36,28 @@ Calcular rutas multimodales combinando:
   - Algoritmos: CSA (Connection Scan Algorithm) para earliest arrival.
 
 ### Flujos
+
+#### Diagrama (alto nivel)
+
+```mermaid
+flowchart LR
+  Client[Cliente: web o curl] -->|POST /routes| API[API FastAPI]
+  API -->|sync calculate| Service[MultimodalRoutingService]
+  Service --> Map[OSM map provider]
+  Service --> GTFS[GTFS repository]
+  Service --> Client
+
+  Client -->|POST /routes/async| API
+  API --> Jobs[RouteJobsService]
+  Jobs -->|send message| SQS[SQS]
+  Jobs -->|PENDING| DDB[DynamoDB]
+
+  Worker[Worker] -->|poll/consume| SQS
+  Worker -->|calculate route| Service
+  Worker -->|SUCCESS/ERROR| DDB
+  Client -->|GET /routes/jobs/:id| API
+  API --> DDB
+```
 
 **Síncrono**
 1) API recibe `origin/destination/depart_at/preference`

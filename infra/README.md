@@ -64,5 +64,23 @@ Script de despliegue (build + push + restart):
 ```bash
 export AWS_REGION=eu-west-1
 export IMAGE_TAG=latest
+export OSM_GRAPH_S3_URI=s3://<bucket>/<key>
 ./scripts/aws_deploy.sh
+```
+
+## Teardown y costes (AWS)
+
+Cost drivers principales:
+
+- **EC2**: coste fijo mientras la instancia esté encendida (principal driver).
+- **EBS**: volumen de la instancia (normalmente pequeño, pero existe).
+- **S3/SQS/DynamoDB**: coste por uso (habitualmente bajo en sandbox).
+
+Para evitar costes, destruye lo creado por Terraform:
+
+```bash
+terraform destroy -auto-approve \
+  -var="use_localstack=false" \
+  -var="aws_region=eu-west-1" \
+  -var="enable_compute=true"
 ```

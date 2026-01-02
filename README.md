@@ -6,6 +6,7 @@ Proyecto de cálculo de rutas multimodal (caminar + guagua/GTFS) para Las Palmas
 
 - **Uso de nube (AWS o LocalStack):** se usan **S3 + SQS + DynamoDB** (y LocalStack para desarrollo/CI).
 - **Documentación de arquitectura empresarial:** ver [docs/architecture.md](docs/architecture.md).
+- **Matriz de requisitos del enunciado:** ver [docs/requirements-matrix.md](docs/requirements-matrix.md).
 - **Configuración de recursos cloud:** Terraform en [infra/](infra/), módulos para S3/SQS/DynamoDB.
 
 ## Arquitectura (resumen)
@@ -165,3 +166,33 @@ Notas:
 ## Sandbox AWS (mínimo viable)
 
 Este repo deja lista la **infra base** (S3/SQS/DynamoDB) vía Terraform y una opción opcional de runtime en EC2 (ver sección anterior y [infra/README.md](infra/README.md)).
+
+## Teardown y costes
+
+### LocalStack / demo local
+
+Parar contenedores:
+
+```bash
+docker compose -f docker-compose.demo.yml down
+```
+
+Borrar volúmenes (borra cachés del grafo OSM y el prebuilt):
+
+```bash
+docker volume rm graph-transport-lpa_osm-prebuilt graph-transport-lpa_osm-cache
+```
+
+### AWS
+
+Cost drivers principales:
+
+- **EC2** (si `enable_compute=true`): es lo que más cuesta de forma continua.
+- **S3/SQS/DynamoDB**: normalmente bajo coste en sandbox (más “pay per use”).
+
+Apagar y evitar costes:
+
+```bash
+cd infra
+terraform destroy -auto-approve -var="use_localstack=false" -var="aws_region=eu-west-1" -var="enable_compute=true"
+```
