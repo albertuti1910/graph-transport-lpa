@@ -112,6 +112,7 @@ aws s3 cp ./lpa_walk.graphml s3://<bucket>/<key>
 export AWS_REGION=eu-west-1
 export IMAGE_TAG=latest
 export OSM_GRAPH_S3_URI=s3://<bucket>/<key>
+chmod +x ./scripts/aws_deploy.sh
 ./scripts/aws_deploy.sh
 ```
 

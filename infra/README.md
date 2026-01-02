@@ -65,6 +65,7 @@ Script de despliegue (build + push + restart):
 export AWS_REGION=eu-west-1
 export IMAGE_TAG=latest
 export OSM_GRAPH_S3_URI=s3://<bucket>/<key>
+chmod +x ./scripts/aws_deploy.sh
 ./scripts/aws_deploy.sh
 ```
 
