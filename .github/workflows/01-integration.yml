@@ -15,8 +15,6 @@ jobs:
 
     env:
       USE_LOCALSTACK: "1"
-      ENDPOINT_URL: "http://localhost:4566"
-      # Backwards compatible name
       LOCALSTACK_ENDPOINT_URL: "http://localhost:4566"
       AWS_REGION: "eu-west-1"
       AWS_ACCESS_KEY_ID: "test"
@@ -47,7 +45,7 @@ jobs:
 
           echo "Waiting for LocalStack..."
           for i in $(seq 1 60); do
-            if curl -fsS --max-time 2 "${ENDPOINT_URL}/_localstack/health" | grep -q '"running"'; then
+            if curl -fsS "${LOCALSTACK_ENDPOINT_URL}/_localstack/health" | grep -q '"running"'; then
               echo "LocalStack is running"
               exit 0
             fi
