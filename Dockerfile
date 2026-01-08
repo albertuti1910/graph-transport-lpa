@@ -29,6 +29,9 @@ COPY --from=builder /opt/venv /opt/venv
 COPY src ./src
 COPY data ./data
 
+RUN mkdir -p /app/osm_prebuilt
+COPY lpa_walk.graphml /app/osm_prebuilt/lpa_walk.graphml
+
 EXPOSE 8000
 
 CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
