@@ -14,6 +14,6 @@ output "instance_id" {
 }
 
 output "public_ip" {
-  value       = aws_instance.urbanpath.public_ip
-  description = "Public IPv4 address (HTTP on port 80)."
+  value       = aws_eip.urbanpath.public_ip
+  description = "Elastic IP (stable public IPv4; HTTP on port 80)."
 }

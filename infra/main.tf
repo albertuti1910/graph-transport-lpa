@@ -61,9 +61,9 @@ module "compute" {
 
   osm_graph_s3_uri = var.osm_graph_s3_uri
 
-  instance_type    = var.compute_instance_type
-  image_tag        = var.compute_image_tag
-  allow_http_cidr  = var.compute_allow_http_cidr
+  instance_type   = var.compute_instance_type
+  image_tag       = var.compute_image_tag
+  allow_http_cidr = var.compute_allow_http_cidr
 }
 
 output "s3_bucket_name" {

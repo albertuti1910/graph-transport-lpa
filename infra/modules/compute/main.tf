@@ -16,8 +16,8 @@ data "aws_subnets" "default" {
 }
 
 locals {
-  name_prefix = var.project
-  account_id  = data.aws_caller_identity.current.account_id
+  name_prefix  = var.project
+  account_id   = data.aws_caller_identity.current.account_id
   ecr_registry = "${local.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com"
 }
 
@@ -169,20 +169,21 @@ data "aws_ami" "al2023" {
 }
 
 resource "aws_instance" "urbanpath" {
-  ami                         = data.aws_ami.al2023.id
-  instance_type               = var.instance_type
-  subnet_id                   = tolist(data.aws_subnets.default.ids)[0]
-  vpc_security_group_ids      = [aws_security_group.http.id]
-  iam_instance_profile        = aws_iam_instance_profile.instance.name
-  associate_public_ip_address = true
+  ami                    = data.aws_ami.al2023.id
+  instance_type          = var.instance_type
+  subnet_id              = tolist(data.aws_subnets.default.ids)[0]
+  vpc_security_group_ids = [aws_security_group.http.id]
+  iam_instance_profile   = aws_iam_instance_profile.instance.name
+  # Public IPv4 is provided via the Elastic IP below.
+  associate_public_ip_address = false
 
   user_data = templatefile("${path.module}/user_data.sh.tftpl", {
-    aws_region         = var.aws_region
-    ecr_registry       = local.ecr_registry
-    app_image          = "${local.ecr_registry}/${aws_ecr_repository.app.name}:${var.image_tag}"
-    web_image          = "${local.ecr_registry}/${aws_ecr_repository.web.name}:${var.image_tag}"
-    sqs_queue_url      = var.app_sqs_queue_url
-    ddb_table          = var.app_ddb_table_name
+    aws_region          = var.aws_region
+    ecr_registry        = local.ecr_registry
+    app_image           = "${local.ecr_registry}/${aws_ecr_repository.app.name}:${var.image_tag}"
+    web_image           = "${local.ecr_registry}/${aws_ecr_repository.web.name}:${var.image_tag}"
+    sqs_queue_url       = var.app_sqs_queue_url
+    ddb_table           = var.app_ddb_table_name
     street_graph_bucket = var.street_graph_bucket
     osm_graph_s3_uri    = var.osm_graph_s3_uri
   })
@@ -191,4 +192,20 @@ resource "aws_instance" "urbanpath" {
     Name    = "${local.name_prefix}-compute"
     Project = var.project
   }
+}
+
+# Stable public IPv4 without ALB.
+# Managed by Terraform so it is released on `terraform destroy`.
+resource "aws_eip" "urbanpath" {
+  domain = "vpc"
+
+  tags = {
+    Name    = "${local.name_prefix}-eip"
+    Project = var.project
+  }
+}
+
+resource "aws_eip_association" "urbanpath" {
+  allocation_id = aws_eip.urbanpath.id
+  instance_id   = aws_instance.urbanpath.id
 }

@@ -69,8 +69,8 @@ provider "aws" {
   skip_requesting_account_id  = var.use_localstack
 
   endpoints {
-    s3  = var.use_localstack ? var.localstack_endpoint : null
-    sqs = var.use_localstack ? var.localstack_endpoint : null
+    s3       = var.use_localstack ? var.localstack_endpoint : null
+    sqs      = var.use_localstack ? var.localstack_endpoint : null
     dynamodb = var.use_localstack ? var.localstack_endpoint : null
   }
 }
