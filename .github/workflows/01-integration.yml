@@ -68,6 +68,7 @@ jobs:
           bash .github/workflows/quality-gates/05-integration-tests.sh
           bash .github/workflows/quality-gates/03-load-tests.sh
           bash .github/workflows/quality-gates/04-security-scan.sh
+          bash .github/workflows/quality-gates/06-coverage-report.sh
 
       - name: Shutdown services
         if: always()
