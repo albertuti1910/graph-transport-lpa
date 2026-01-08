@@ -61,9 +61,12 @@ class Route:
         # Preferred: if we have timestamps, compute wall-clock duration.
         # This naturally includes waiting time and transfers.
         if self.legs:
-            first_depart = next((l.depart_at for l in self.legs if l.depart_at), None)
+            first_depart = next(
+                (leg.depart_at for leg in self.legs if leg.depart_at), None
+            )
             last_arrive = next(
-                (l.arrive_at for l in reversed(self.legs) if l.arrive_at), None
+                (leg.arrive_at for leg in reversed(self.legs) if leg.arrive_at),
+                None,
             )
             if first_depart and last_arrive:
                 delta = (last_arrive - first_depart).total_seconds()
