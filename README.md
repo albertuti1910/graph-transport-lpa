@@ -89,7 +89,7 @@ Para un sandbox AWS es recomendable guardar el grafo preconstruido como artefact
 2) En el runtime (ECS/EC2), configura:
 
 - `OSM_GRAPH_PATH=/app/osm_prebuilt/lpa_walk.graphml`
-- `OSM_GRAPH_S3_URI=s3://<bucket>/<key>`
+- `OSM_GRAPH_S3_URI=s3://urbanpath-osm-graphs/lpa_walk.graphml`
 - `OSM_GRAPH_AUTO_BUILD=0` (para garantizar que nunca se reconstruye desde Overpass)
 
 Con eso, al arrancar el contenedor se descarga el fichero si falta y luego solo se carga.
@@ -103,7 +103,7 @@ Requisito: tener un grafo prebuilt en S3 (no se construye en runtime).
 1) Sube el grafo prebuilt a S3 (ejemplo):
 
 ```bash
-aws s3 cp ./lpa_walk.graphml s3://<bucket>/<key>
+aws s3 cp ./lpa_walk.graphml s3://urbanpath-osm-graphs/lpa_walk.graphml
 ```
 
 2) Despliega (Terraform + build/push + restart):
@@ -111,7 +111,7 @@ aws s3 cp ./lpa_walk.graphml s3://<bucket>/<key>
 ```bash
 export AWS_REGION=eu-west-1
 export IMAGE_TAG=latest
-export OSM_GRAPH_S3_URI=s3://<bucket>/<key>
+export OSM_GRAPH_S3_URI=s3://urbanpath-osm-graphs/lpa_walk.graphml
 chmod +x ./scripts/aws_deploy.sh
 ./scripts/aws_deploy.sh
 ```
@@ -125,7 +125,7 @@ terraform output -raw compute_public_ip
 
 4) Abre la demo en:
 
-- `http://<ip>/`
+- `http://52.213.34.64/`
 
 ## Desarrollo (sin Docker)
 
@@ -164,10 +164,6 @@ Notas:
 - Para demo local usa el perfil `demo` (levanta LocalStack + API + worker + web).
 - `docker-compose.aws.yml` se usa para runtime en AWS (sin LocalStack).
 - Para más detalle de infra, ver [infra/README.md](infra/README.md).
-
-## Sandbox AWS (mínimo viable)
-
-Este repo deja lista la **infra base** (S3/SQS/DynamoDB) vía Terraform y una opción opcional de runtime en EC2 (ver sección anterior y [infra/README.md](infra/README.md)).
 
 ## Teardown y costes
 
