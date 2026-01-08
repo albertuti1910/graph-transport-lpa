@@ -14,9 +14,10 @@ from src.adapters.persistence.local_gtfs_repository import LocalGtfsRepository
 from src.app.ports.output import IMapProvider
 from src.app.services.multimodal_routing_service import MultimodalRoutingService
 from src.domain.models import GeoPoint
+from src.domain.models.route import Route
 
 
-def _route_to_dict(route) -> dict:
+def _route_to_dict(route: Route) -> dict:
     return {
         "origin": {"lat": route.origin.lat, "lon": route.origin.lon},
         "destination": {"lat": route.destination.lat, "lon": route.destination.lon},
@@ -25,25 +26,17 @@ def _route_to_dict(route) -> dict:
                 "mode": leg.mode.value,
                 "origin": {"lat": leg.origin.lat, "lon": leg.origin.lon},
                 "destination": {"lat": leg.destination.lat, "lon": leg.destination.lon},
-                "origin_name": getattr(leg, "origin_name", None),
-                "destination_name": getattr(leg, "destination_name", None),
-                "origin_stop_id": getattr(leg, "origin_stop_id", None),
-                "destination_stop_id": getattr(leg, "destination_stop_id", None),
-                "depart_at": (
-                    getattr(leg, "depart_at", None).isoformat()
-                    if getattr(leg, "depart_at", None)
-                    else None
-                ),
-                "arrive_at": (
-                    getattr(leg, "arrive_at", None).isoformat()
-                    if getattr(leg, "arrive_at", None)
-                    else None
-                ),
+                "origin_name": leg.origin_name,
+                "destination_name": leg.destination_name,
+                "origin_stop_id": leg.origin_stop_id,
+                "destination_stop_id": leg.destination_stop_id,
+                "depart_at": leg.depart_at.isoformat() if leg.depart_at else None,
+                "arrive_at": leg.arrive_at.isoformat() if leg.arrive_at else None,
                 "distance_m": leg.distance_m,
                 "duration_s": leg.duration_s,
                 "path": (
-                    [{"lat": p.lat, "lon": p.lon} for p in getattr(leg, "path", ())]
-                    if getattr(leg, "path", None)
+                    [{"lat": p.lat, "lon": p.lon} for p in leg.path]
+                    if leg.path
                     else None
                 ),
                 "line": (
@@ -54,10 +47,10 @@ def _route_to_dict(route) -> dict:
                         "color": leg.line.color,
                         "text_color": leg.line.text_color,
                     }
-                    if getattr(leg, "line", None)
+                    if leg.line
                     else None
                 ),
-                "trip_id": getattr(leg, "trip_id", None),
+                "trip_id": leg.trip_id,
             }
             for leg in route.legs
         ],

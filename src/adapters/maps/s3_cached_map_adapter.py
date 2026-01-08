@@ -98,7 +98,7 @@ class S3CachedMapAdapter(IMapProvider):
             if hasattr(graph, "edges"):
                 # Support MultiGraphs and simple Graphs.
                 try:
-                    iterator = graph.edges(keys=True, data=True)  # type: ignore[attr-defined]
+                    iterator = graph.edges(keys=True, data=True)
                     for _, _, _, data in iterator:
                         if "length" in data:
                             try:

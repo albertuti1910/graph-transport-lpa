@@ -328,7 +328,7 @@ class MultimodalRoutingService:
         """
 
         try:
-            import osmnx as ox  # type: ignore
+            import osmnx as ox
 
             u, v, k = ox.distance.nearest_edges(graph, X=point.lon, Y=point.lat)
             data = None
@@ -439,7 +439,7 @@ class MultimodalRoutingService:
     def _nearest_node(self, graph: Any, point: GeoPoint) -> Any:
         # Fast path: use OSMnx spatial index if available (much faster than scanning all nodes).
         try:
-            import osmnx as ox  # type: ignore
+            import osmnx as ox
 
             return ox.distance.nearest_nodes(graph, X=point.lon, Y=point.lat)
         except Exception:
