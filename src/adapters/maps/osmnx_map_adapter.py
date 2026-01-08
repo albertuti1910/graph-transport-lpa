@@ -42,6 +42,14 @@ class OSMnxMapAdapter(IMapProvider):
         if not path:
             return None
 
+        p = Path(path)
+        if not p.exists():
+            raise RuntimeError(
+                "Prebuilt OSM graph not found at OSM_GRAPH_PATH="
+                f"{path}. Provide OSM_GRAPH_S3_URI, or enable OSM_GRAPH_AUTO_BUILD=1 "
+                "(and set OSM_PLACE), or bake the graph file into the container image."
+            )
+
         if path.lower().endswith(".graphml"):
             # Important: use OSMnx loader so node/edge attributes keep correct
             # numeric types (e.g. edge "length"), otherwise shortest-path can
