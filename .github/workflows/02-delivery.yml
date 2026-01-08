@@ -44,9 +44,14 @@ jobs:
           docker compose up -d
 
           echo "Waiting for LocalStack..."
-          for i in $(seq 1 60); do
-            if curl -fsS --max-time 2 "${ENDPOINT_URL}/_localstack/health" | grep -q '"running"'; then
-              echo "LocalStack is running"
+          # LocalStack may reset connections during boot; don't fail fast.
+          # LocalStack v3 health JSON reports per-service status like "available".
+          for i in $(seq 1 90); do
+            health_json=$(curl -sS --connect-timeout 1 --max-time 2 "${ENDPOINT_URL}/_localstack/health" || true)
+            if echo "$health_json" | grep -qE '"s3"[[:space:]]*:[[:space:]]*"(running|available)"' \
+              && echo "$health_json" | grep -qE '"sqs"[[:space:]]*:[[:space:]]*"(running|available)"' \
+              && echo "$health_json" | grep -qE '"dynamodb"[[:space:]]*:[[:space:]]*"(running|available)"'; then
+              echo "LocalStack is healthy"
               exit 0
             fi
             sleep 2

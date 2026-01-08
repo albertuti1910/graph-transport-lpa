@@ -35,7 +35,7 @@ Requisitos: Docker + Docker Compose.
 1) Levanta stack completo (LocalStack + API + worker + web):
 
 ```bash
-docker compose -f docker-compose.demo.yml up --build
+docker compose --profile demo up --build
 ```
 
 2) Abre la web demo:
@@ -61,7 +61,7 @@ Construir el grafo OSM (walking) es lo que más tarda en “cold start”. La de
 
 En la demo actual, el fichero prebuilt se guarda en un **volumen Docker nombrado** (`osm-prebuilt`), no en `./data/`.
 
-Variables usadas en `docker-compose.demo.yml`:
+Variables usadas en `docker-compose.yml` (perfil `demo`):
 
 - `OSM_GRAPH_PATH=/app/osm_prebuilt/lpa_walk.graphml`
 - `OSM_GRAPH_AUTO_BUILD=1`
@@ -70,15 +70,15 @@ Variables usadas en `docker-compose.demo.yml`:
 Si quieres forzar regeneración, borra el volumen y reinicia el stack:
 
 ```bash
-docker compose -f docker-compose.demo.yml down
+docker compose --profile demo down
 docker volume rm graph-transport-lpa_osm-prebuilt graph-transport-lpa_osm-cache
-docker compose -f docker-compose.demo.yml up -d --build
+docker compose --profile demo up -d --build
 ```
 
 Para inspeccionar el volumen:
 
 ```bash
-docker compose -f docker-compose.demo.yml exec api sh -lc 'ls -lah /app/osm_prebuilt'
+docker compose --profile demo exec api sh -lc 'ls -lah /app/osm_prebuilt'
 ```
 
 ### AWS: usar un grafo fijo en S3 (sin reconstruir)
@@ -160,8 +160,9 @@ Outputs esperados:
 - `dynamodb_table_name`
 
 Notas:
-- `docker-compose.yml` levanta solo LocalStack (útil para CI/tests).
-- `docker-compose.demo.yml` levanta el stack completo (LocalStack + API + worker + web).
+- `docker-compose.yml` por defecto levanta solo LocalStack (útil para CI/tests).
+- Para demo local usa el perfil `demo` (levanta LocalStack + API + worker + web).
+- `docker-compose.aws.yml` se usa para runtime en AWS (sin LocalStack).
 - Para más detalle de infra, ver [infra/README.md](infra/README.md).
 
 ## Sandbox AWS (mínimo viable)
@@ -175,7 +176,7 @@ Este repo deja lista la **infra base** (S3/SQS/DynamoDB) vía Terraform y una op
 Parar contenedores:
 
 ```bash
-docker compose -f docker-compose.demo.yml down
+docker compose --profile demo down
 ```
 
 Borrar volúmenes (borra cachés del grafo OSM y el prebuilt):

@@ -6,8 +6,80 @@ services:
     environment:
       - SERVICES=s3,sqs,dynamodb
       - AWS_DEFAULT_REGION=eu-west-1
+      # Names used by localstack init script (safe defaults)
+      - S3_GRAPHS_BUCKET=urbanpath-graphs
+      - S3_STREET_BUCKET=urbanpath-street-graphs
+      - SQS_QUEUE_NAME=urbanpath-route-requests
+      - DDB_TABLE_NAME=urbanpath-route-results
+    healthcheck:
+      test: ["CMD-SHELL", "health_json=$(curl -sS --max-time 2 http://localhost:4566/_localstack/health) && echo \"$$health_json\" | grep -qE '\"s3\"[[:space:]]*:[[:space:]]*\"(running|available)\"' && echo \"$$health_json\" | grep -qE '\"sqs\"[[:space:]]*:[[:space:]]*\"(running|available)\"' && echo \"$$health_json\" | grep -qE '\"dynamodb\"[[:space:]]*:[[:space:]]*\"(running|available)\"'"]
+      interval: 2s
+      timeout: 3s
+      retries: 60
     volumes:
       - localstack-data:/var/lib/localstack
+      - ./localstack/init:/etc/localstack/init
+
+  api:
+    profiles: ["demo"]
+    build: .
+    environment:
+      - ENDPOINT_URL=http://localstack:4566
+      - AWS_REGION=eu-west-1
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - SQS_QUEUE_URL=http://localstack:4566/000000000000/urbanpath-route-requests
+      - DDB_TABLE=urbanpath-route-results
+      - STREET_GRAPH_BUCKET=urbanpath-street-graphs
+      - OSMNX_CACHE_FOLDER=/app/osm_cache
+      - OSM_GRAPH_PATH=/app/osm_prebuilt/lpa_walk.graphml
+      - OSM_GRAPH_AUTO_BUILD=1
+      - OSM_PLACE=Las Palmas de Gran Canaria, Canary Islands, Spain
+    depends_on:
+      localstack:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    volumes:
+      - osm-cache:/app/osm_cache
+      - osm-prebuilt:/app/osm_prebuilt
+
+  worker:
+    profiles: ["demo"]
+    build: .
+    command: ["python", "-m", "src.worker"]
+    environment:
+      - ENDPOINT_URL=http://localstack:4566
+      - AWS_REGION=eu-west-1
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - SQS_QUEUE_URL=http://localstack:4566/000000000000/urbanpath-route-requests
+      - DDB_TABLE=urbanpath-route-results
+      - STREET_GRAPH_BUCKET=urbanpath-street-graphs
+      - WORKER_LOOP=1
+      - OSMNX_CACHE_FOLDER=/app/osm_cache
+      - OSM_GRAPH_PATH=/app/osm_prebuilt/lpa_walk.graphml
+      - OSM_GRAPH_AUTO_BUILD=1
+      - OSM_PLACE=Las Palmas de Gran Canaria, Canary Islands, Spain
+    depends_on:
+      localstack:
+        condition: service_healthy
+    volumes:
+      - osm-cache:/app/osm_cache
+      - osm-prebuilt:/app/osm_prebuilt
+
+  web:
+    profiles: ["demo"]
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./web:/usr/share/nginx/html:ro
+      - ./web/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - api
 
 volumes:
   localstack-data:
+  osm-cache:
+  osm-prebuilt:
