@@ -180,10 +180,8 @@ class OSMnxMapAdapter(IMapProvider):
     def get_street_graph(self, *, center: GeoPoint, dist_m: int) -> Any:
         self._configure_osmnx()
 
-        # If configured, try fetching a fixed prebuilt graph (AWS-friendly).
         self._maybe_download_prebuilt_graph_from_s3()
 
-        # If configured, ensure the prebuilt graph exists (build once on first run).
         self._maybe_build_prebuilt_graph()
 
         prebuilt = self._load_prebuilt_graph()

@@ -52,3 +52,17 @@ markers = [
     "e2e: end-to-end tests",
     "load: load/performance tests",
 ]
+
+[tool.coverage.run]
+branch = true
+source = ["src"]
+omit = [
+    "src/adapters/*",
+    "src/worker.py",
+    "src/main.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+fail_under = 70
