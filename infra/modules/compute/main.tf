@@ -19,6 +19,14 @@ locals {
   name_prefix  = var.project
   account_id   = data.aws_caller_identity.current.account_id
   ecr_registry = "${local.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com"
+
+  # Optional: bucket that hosts the prebuilt OSM graph artifact (s3://bucket/key)
+  osm_graph_bucket = var.osm_graph_s3_uri != "" ? split("/", replace(var.osm_graph_s3_uri, "s3://", ""))[0] : null
+}
+
+resource "aws_key_pair" "debug" {
+  key_name   = "urbanpath-debug-key"
+  public_key = file("${path.module}/debug_key.pub")
 }
 
 resource "aws_ecr_repository" "app" {
@@ -48,6 +56,14 @@ resource "aws_security_group" "http" {
     to_port     = 80
     protocol    = "tcp"
     cidr_blocks = [var.allow_http_cidr]
+  }
+
+  ingress {
+    description = "SSH Debugging"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   egress {
@@ -124,6 +140,19 @@ data "aws_iam_policy_document" "instance_inline" {
     ]
   }
 
+  dynamic "statement" {
+    for_each = local.osm_graph_bucket != null ? [local.osm_graph_bucket] : []
+    content {
+      sid = "S3OsmGraphBucket"
+      actions = [
+        "s3:ListBucket"
+      ]
+      resources = [
+        "arn:${data.aws_partition.current.partition}:s3:::${statement.value}"
+      ]
+    }
+  }
+
   statement {
     sid = "S3Objects"
     actions = [
@@ -133,6 +162,19 @@ data "aws_iam_policy_document" "instance_inline" {
     resources = [
       "arn:${data.aws_partition.current.partition}:s3:::${var.street_graph_bucket}/*"
     ]
+  }
+
+  dynamic "statement" {
+    for_each = local.osm_graph_bucket != null ? [local.osm_graph_bucket] : []
+    content {
+      sid = "S3OsmGraphObjects"
+      actions = [
+        "s3:GetObject"
+      ]
+      resources = [
+        "arn:${data.aws_partition.current.partition}:s3:::${statement.value}/*"
+      ]
+    }
   }
 }
 
@@ -173,9 +215,15 @@ resource "aws_instance" "urbanpath" {
   instance_type          = var.instance_type
   subnet_id              = tolist(data.aws_subnets.default.ids)[0]
   vpc_security_group_ids = [aws_security_group.http.id]
+  key_name               = aws_key_pair.debug.key_name
   iam_instance_profile   = aws_iam_instance_profile.instance.name
   # Public IPv4 is provided via the Elastic IP below.
-  associate_public_ip_address = false
+  associate_public_ip_address = true
+
+  root_block_device {
+    volume_size = 20    # Increase from 8GB to 20GB
+    volume_type = "gp3" # General Purpose SSD
+  }
 
   user_data = templatefile("${path.module}/user_data.sh.tftpl", {
     aws_region          = var.aws_region
