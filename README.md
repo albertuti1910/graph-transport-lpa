@@ -197,3 +197,9 @@ Apagar y evitar costes:
 cd infra
 terraform destroy -auto-approve -var="use_localstack=false" -var="aws_region=eu-west-1" -var="enable_compute=true"
 ```
+
+## Autores
++ Alberto Rivero Monzón
++ Mariana Bordes Bueno
+
+Este proyecto fue realizado para la asignatura de "Tecnologías de Servicios para Ciencia de Datos" del Grado en Ingeniería y Ciencia de Datos de la Universidad de Las Palmas de Gran Canaria (ULPGC).
